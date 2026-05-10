@@ -9,14 +9,133 @@ import {
   type ReactNode,
 } from "react";
 
-import type {
-  AutomationMode,
-  IrrigationSchedule,
-  Message,
-  OrionRecommendation,
-  StatusState,
-  SystemState,
-} from "../types/system";
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type Session = {
+  id: string;
+  title: string;
+};
+
+type LastDecision = {
+  action: string;
+  reason?: string;
+  params?: Record<string, unknown>;
+  source?: string;
+  requires_execution?: boolean;
+  result?: unknown;
+  time?: number;
+};
+
+type SprinklerState = {
+  online?: boolean;
+  source?: string | null;
+  running?: boolean;
+  zone?: number | string | null;
+  mode?: string | null;
+  next_run?: unknown;
+  error?: string;
+  raw?: unknown;
+};
+
+type ThermostatState = {
+  online?: boolean;
+  source?: string | null;
+  temp?: number | null;
+  humidity?: number | null;
+  mode?: string | null;
+  cooling?: boolean;
+  heating?: boolean;
+  fan?: boolean;
+  error?: string;
+  raw?: unknown;
+};
+
+type WeatherState = {
+  online?: boolean;
+  location?: string | null;
+  temp?: number | null;
+  feels_like?: number | null;
+  humidity?: number | null;
+  condition?: string | null;
+  rain_chance?: number | null;
+  wind_mph?: number | null;
+  precip_in?: number | null;
+  source?: string | null;
+  updated_at?: number | null;
+  cache_age_seconds?: number | null;
+  forecast_today?: {
+    date?: string | null;
+    max_temp?: number | null;
+    min_temp?: number | null;
+    sunrise?: string | null;
+    sunset?: string | null;
+  } | null;
+  error?: string | null;
+};
+
+
+type IrrigationSchedule = {
+  enabled?: boolean;
+  days?: string[];
+  start_time?: string | null;
+  duration_minutes?: number | null;
+  zones?: number[];
+  skip_next_run?: boolean;
+  skip_reason?: string | null;
+  updated_at?: number | null;
+  controller?: string;
+  hardware_sync_required?: boolean;
+  skip_if_rain_likely?: boolean;
+  last_run_key?: string | null;
+  active_run?: unknown;
+  last_scheduler_event?: unknown;
+  hardware_synced?: boolean;
+  hardware_result?: unknown;
+};
+
+type SystemState = {
+  mode: string;
+  automation_mode?: AutomationMode;
+  fault: string | null;
+  cpu: number;
+  memory: number;
+  gpu?: number;
+  ai_status: string;
+  last_update: number;
+  last_decision: LastDecision | null;
+  last_execution?: unknown;
+  manual_override_until?: number | null;
+  manual_override_reason?: string | null;
+  fault_status?: Record<string, unknown>;
+  irrigation_schedule?: IrrigationSchedule;
+  sprinkler?: SprinklerState;
+  thermostat?: ThermostatState;
+  weather?: WeatherState;
+};
+
+type StatusState = "good" | "bad" | "warn" | "neutral" | "active";
+
+type AutomationMode = "manual" | "auto";
+
+type RecommendationAction =
+  | "observe"
+  | "nothing"
+  | "delay_irrigation"
+  | "stop_sprinkler"
+  | "set_thermostat";
+
+type OrionRecommendation = {
+  title: string;
+  detail: string;
+  state: StatusState;
+  action: RecommendationAction;
+  params?: Record<string, unknown>;
+  canApply: boolean;
+  applyLabel?: string;
+};
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:5001";
@@ -36,6 +155,37 @@ function formatJson(value: unknown, fallback = "No data") {
   } catch {
     return String(value);
   }
+}
+
+
+function formatMetricValue(value: unknown): ReactNode {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.length ? `${value.length} item(s)` : "—";
+  }
+
+  if (typeof value === "object") {
+    const data = value as Record<string, unknown>;
+
+    if ("day" in data && "time" in data && "zone" in data) {
+      return `${String(data.day)} ${String(data.time)} · Zone ${String(data.zone)}`;
+    }
+
+    return JSON.stringify(data);
+  }
+
+  return String(value);
 }
 
 function percent(value?: number) {
@@ -756,7 +906,7 @@ function CollapsibleCard({
               <div key={metric.label}>
                 <MetricTile
                   label={metric.label}
-                  value={metric.value}
+                  value={formatMetricValue(metric.value)}
                   state={metric.state}
                 />
               </div>
@@ -778,7 +928,7 @@ function Field({
   state,
 }: {
   label: string;
-  value: ReactNode;
+  value: unknown;
   state?: "good" | "bad" | "neutral" | "warn" | "active";
 }) {
   return (
@@ -796,7 +946,7 @@ function Field({
           (!state || state === "neutral") && "text-white",
         )}
       >
-        {value}
+        {formatMetricValue(value)}
       </div>
     </div>
   );
@@ -1264,7 +1414,10 @@ export default function Home() {
   };
 
   const postControl = useCallback(
-    async (path: string, body: Record<string, unknown> = {}) => {
+    async (
+      path: string,
+      body: Record<string, unknown> = {},
+    ) => {
       setControlLoading(true);
 
       try {
@@ -1310,7 +1463,6 @@ export default function Home() {
     },
     [loadSystem],
   );
-
 
   const setAutomationModeAction = async (mode: AutomationMode) => {
     setAutomationMode(mode);
@@ -2179,7 +2331,7 @@ export default function Home() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Next run" value={system?.sprinkler?.next_run || "No schedule"} />
+                      <Field label="Next run" value={formatMetricValue(system?.sprinkler?.next_run) || "No schedule"} />
                       <Field label="Schedule" value={formatScheduleSummary(system?.irrigation_schedule)} />
                       <Field label="Controller" value={formatScheduleController(system?.irrigation_schedule)} state="good" />
                       <Field label="Skip next" value={yesNo(system?.irrigation_schedule?.skip_next_run)} state={system?.irrigation_schedule?.skip_next_run ? "warn" : "neutral"} />
