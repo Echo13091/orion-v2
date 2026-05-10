@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Thermostat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #eee;
+      text-align: center;
+      padding: 24px;
+      margin: 0;
+    }
+
+    .wrap {
+      max-width: 780px;
+      margin: 0 auto;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: #1e1e1e;
+      padding: 24px;
+      border-radius: 14px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.45);
+      text-align: left;
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+    }
+
+    .temp {
+      font-size: 56px;
+      margin: 8px 0 12px;
+      text-align: center;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #2c2c2c;
+      gap: 12px;
+    }
+
+    .status-row:last-child {
+      border-bottom: none;
+    }
+
+    .label {
+      color: #aaa;
+    }
+
+    .value {
+      font-weight: bold;
+      text-transform: uppercase;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .on {
+      color: #00ff88;
+    }
+
+    .off {
+      color: #ff5c5c;
+    }
+
+    .warn {
+      color: #ffd24d;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 14px;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #333;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      min-width: 86px;
+    }
+
+    button:hover {
+      background: #444;
+    }
+
+    button.active {
+      background: #00aaff;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    input {
+      padding: 10px;
+      width: 110px;
+      text-align: center;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+    }
+
+    .setpoint-box {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .alarm-list {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .alarm-list li {
+      margin-bottom: 6px;
+    }
+
+    .small {
+      color: #aaa;
+      font-size: 13px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #2a2a2a;
+      font-size: 12px;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+
+    .banner {
+      margin-bottom: 18px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-weight: bold;
+      text-align: left;
+      border: 1px solid #444;
+      display: none;
+      overflow-wrap: anywhere;
+    }
+
+    .banner.ok {
+      background: rgba(0, 255, 136, 0.10);
+      border-color: #1d6b45;
+      color: #00ff88;
+    }
+
+    .banner.warn {
+      background: rgba(255, 210, 77, 0.12);
+      border-color: #7a6320;
+      color: #ffd24d;
+    }
+
+    .banner.critical {
+      background: rgba(255, 92, 92, 0.12);
+      border-color: #803333;
+      color: #ff7b7b;
+    }
+  </style>
+
+  <script>
+    let lastStatus = null;
+
+    function fmtSeconds(sec) {
+      sec = Math.max(0, parseInt(sec || 0, 10));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.innerText = value;
+    }
+
+    function boolValue(value) {
+      return value === true || value === 'true' || value === 'ON' || value === 'on' || value === 1;
+    }
+
+    function setStatusClass(id, state, onText = 'ON', offText = 'OFF') {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      const isOn = boolValue(state);
+
+      el.innerText = isOn ? onText : offText;
+      el.className = `value ${isOn ? 'on' : 'off'}`;
+    }
+
+    function setHealth(id, value) {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      const normalized = String(value || '').toLowerCase();
+
+      el.innerText = normalized || 'unknown';
+
+      el.className = 'value ' + (
+        normalized === 'online' ||
+        normalized === 'ok' ||
+        normalized === 'healthy'
+          ? 'on'
+          : normalized === 'offline' ||
+            normalized === 'fault' ||
+            normalized === 'critical'
+          ? 'off'
+          : 'warn'
+      );
+    }
+
+    function highlightMode(mode) {
+      ['off', 'cool', 'heat', 'auto'].forEach(m => {
+        const btn = document.getElementById('btn-' + m);
+        if (btn) btn.classList.remove('active');
+      });
+
+      const active = document.getElementById('btn-' + mode);
+      if (active) active.classList.add('active');
+    }
+
+    function highlightFanMode(mode) {
+      ['auto', 'on', 'off'].forEach(m => {
+        const btn = document.getElementById('fan-' + m);
+        if (btn) btn.classList.remove('active');
+      });
+
+      const active = document.getElementById('fan-' + mode);
+      if (active) active.classList.add('active');
+    }
+
+    function cleanFaultText(text) {
+      if (!text) return '';
+
+      let value = String(text).trim();
+
+      value = value.replace(/_/g, ' ');
+      value = value.replace(/\s+/g, ' ');
+
+      return value;
+    }
+
+    function deriveHealth(d) {
+      const alarms = d.alarms || [];
+      const sensor = String(d.sensor_status || '').toLowerCase();
+      const heartbeat = String(d.heartbeat || '').toLowerCase();
+
+      const nodeOnline =
+        d.node_online === true ||
+        d.online === true ||
+        heartbeat === 'online';
+
+      if (!nodeOnline || heartbeat === 'offline') {
+        return 'offline';
+      }
+
+      if (
+        d.fault === true ||
+        String(d.health || '').toLowerCase() === 'fault' ||
+        String(d.status || '').toLowerCase() === 'fault' ||
+        alarms.length > 0 ||
+        ['fault', 'bad', 'error', 'offline'].includes(sensor)
+      ) {
+        return 'fault';
+      }
+
+      return 'online';
+    }
+
+    function renderBanner(d) {
+      const banner = document.getElementById('fault-banner');
+      if (!banner) return;
+
+      const alarms = d.alarms || [];
+      const health = deriveHealth(d);
+
+      let severity = String(d.fault_severity || '').toLowerCase();
+
+      if (!severity) {
+        severity = health === 'offline' || health === 'fault' ? 'critical' : 'ok';
+      }
+
+      let message = '';
+
+      if (d.fault_message) {
+        message = d.fault_message;
+      } else if (d.fault_summary) {
+        message = d.fault_summary;
+      } else if (alarms.length > 0) {
+        message = alarms[0];
+      } else if (health === 'offline') {
+        message = 'HVAC node is offline';
+      }
+
+      message = cleanFaultText(message);
+
+      if (!message || health === 'online') {
+        banner.style.display = 'none';
+        return;
+      }
+
+      banner.style.display = 'block';
+      banner.className = 'banner ' + (
+        severity === 'critical' ? 'critical' : 'warn'
+      );
+
+      banner.innerText = `${severity.toUpperCase()}: ${message}`;
+    }
+
+    function renderAlarms(alarms) {
+      const ul = document.getElementById('alarms');
+      if (!ul) return;
+
+      ul.innerHTML = '';
+
+      if (!alarms || alarms.length === 0) {
+        const li = document.createElement('li');
+        li.innerText = 'No active alarms';
+        li.className = 'on';
+        ul.appendChild(li);
+        return;
+      }
+
+      alarms.forEach(a => {
+        const li = document.createElement('li');
+        li.innerText = cleanFaultText(a);
+        li.className = 'warn';
+        ul.appendChild(li);
+      });
+    }
+
+    async function update() {
+      try {
+        const res = await fetch('/api/hvac/status');
+        const d = await res.json();
+
+        lastStatus = d;
+
+        const health = deriveHealth(d);
+
+        renderBanner(d);
+
+        setText('temp', Number(d.temp || 0).toFixed(1));
+        setText('humidity', Number(d.humidity || 0).toFixed(1));
+        setText('mode', d.mode || '--');
+        setText('fan_mode', d.fan_mode || 'auto');
+        setText('setpoint_display', d.setpoint ?? '--');
+        setText('hvac_state', d.hvac_state || '--');
+        setText('cool_stage', d.cool_stage ?? 0);
+        setText('heat_stage', d.heat_stage ?? 0);
+        setText('fan_delay', fmtSeconds(d.fan_post_run_remaining));
+        setText('min_cool_on', fmtSeconds(d.min_cool_on_remaining));
+        setText('min_cool_off', fmtSeconds(d.min_cool_off_remaining));
+        setText('min_heat_on', fmtSeconds(d.min_heat_on_remaining));
+        setText('min_heat_off', fmtSeconds(d.min_heat_off_remaining));
+        setText('changeover_lockout', fmtSeconds(d.changeover_lockout_remaining));
+        setText('last_action', d.last_action || 'idle');
+
+        setStatusClass('cooling', d.cooling);
+        setStatusClass('heating', d.heating);
+        setStatusClass('fan', d.fan);
+        setStatusClass('relay_cool', d.relay_cool);
+        setStatusClass('relay_heat', d.relay_heat);
+        setStatusClass('relay_fan', d.relay_fan);
+
+        setHealth('health', health);
+        setHealth('heartbeat', d.heartbeat || 'unknown');
+        setHealth('node_online', d.node_online ? 'online' : 'offline');
+        setHealth('sensor_status', d.sensor_status || 'unknown');
+
+        setText('fault_code', d.fault_code || '-');
+        setText('fault_severity', d.fault_severity || '-');
+        setText('fault_message', cleanFaultText(d.fault_message || d.fault_summary || '-'));
+
+        const spInput = document.getElementById('sp');
+
+        if (spInput && document.activeElement !== spInput) {
+          spInput.value = d.setpoint ?? '';
+        }
+
+        highlightMode(d.mode);
+        highlightFanMode(d.fan_mode || 'auto');
+
+        renderAlarms(d.alarms || []);
+
+      } catch (err) {
+        console.log('Update error:', err);
+
+        setHealth('health', 'offline');
+        setHealth('node_online', 'offline');
+
+        const banner = document.getElementById('fault-banner');
+        if (banner) {
+          banner.style.display = 'block';
+          banner.className = 'banner critical';
+          banner.innerText = 'CRITICAL: HVAC backend API is not responding';
+        }
+      }
+    }
+
+    async function setMode(mode) {
+      const res = await fetch('/api/hvac/mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode})
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to set mode');
+      }
+
+      update();
+    }
+
+    async function setFanMode(mode) {
+      const res = await fetch('/api/hvac/fan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode})
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to set fan mode');
+      }
+
+      update();
+    }
+
+    async function setSP() {
+      const input = document.getElementById('sp');
+      let sp = input.value;
+
+      if (sp === '' || isNaN(sp)) {
+        alert('Enter a valid number');
+        return;
+      }
+
+      sp = parseInt(sp, 10);
+
+      if (sp < 50 || sp > 90) {
+        alert('Setpoint must be between 50 and 90');
+        return;
+      }
+
+      const res = await fetch('/api/hvac/setpoint', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({setpoint: sp})
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to set setpoint');
+      }
+
+      update();
+    }
+
+    setInterval(update, 2000);
+  </script>
+</head>
+
+<body onload="update()">
+  <div class="wrap">
+    <h1>Thermostat</h1>
+
+    <div id="fault-banner" class="banner warn"></div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Live Status</h2>
+
+        <div class="temp">
+          <span id="temp">--</span>°F
+        </div>
+
+        <div class="status-row">
+          <span class="label">Humidity</span>
+          <span id="humidity" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Mode</span>
+          <span id="mode" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Setpoint</span>
+          <span id="setpoint_display" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">System State</span>
+          <span id="hvac_state" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Cooling</span>
+          <span id="cooling" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Heating</span>
+          <span id="heating" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Fan</span>
+          <span id="fan" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Fan Mode</span>
+          <span id="fan_mode" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Cool Stage</span>
+          <span id="cool_stage" class="value">0</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Heat Stage</span>
+          <span id="heat_stage" class="value">0</span>
+        </div>
+
+        <div class="setpoint-box">
+          <input id="sp" type="number" />
+          <button onclick="setSP()">Set</button>
+        </div>
+
+        <div class="controls">
+          <button id="btn-off" onclick="setMode('off')">OFF</button>
+          <button id="btn-cool" onclick="setMode('cool')">COOL</button>
+          <button id="btn-heat" onclick="setMode('heat')">HEAT</button>
+          <button id="btn-auto" onclick="setMode('auto')">AUTO</button>
+        </div>
+
+        <div class="small" style="margin-top:18px;text-align:center;">
+          Fan mode
+        </div>
+
+        <div class="controls">
+          <button id="fan-auto" onclick="setFanMode('auto')">AUTO</button>
+          <button id="fan-on" onclick="setFanMode('on')">ON</button>
+          <button id="fan-off" onclick="setFanMode('off')">OFF</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Health + Protection</h2>
+
+        <div class="status-row">
+          <span class="label">Health</span>
+          <span id="health" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Node</span>
+          <span id="node_online" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Heartbeat</span>
+          <span id="heartbeat" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Sensor</span>
+          <span id="sensor_status" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Fault Code</span>
+          <span id="fault_code" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Fault Severity</span>
+          <span id="fault_severity" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Fault Message</span>
+          <span id="fault_message" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Fan Post-Run</span>
+          <span id="fan_delay" class="value">0:00</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Cool Min On</span>
+          <span id="min_cool_on" class="value">0:00</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Cool Min Off</span>
+          <span id="min_cool_off" class="value">0:00</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Heat Min On</span>
+          <span id="min_heat_on" class="value">0:00</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Heat Min Off</span>
+          <span id="min_heat_off" class="value">0:00</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Changeover Lockout</span>
+          <span id="changeover_lockout" class="value">0:00</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Relay Cool</span>
+          <span id="relay_cool" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Relay Heat</span>
+          <span id="relay_heat" class="value">--</span>
+        </div>
+
+        <div class="status-row">
+          <span class="label">Relay Fan</span>
+          <span id="relay_fan" class="value">--</span>
+        </div>
+
+        <div class="pill">
+          Last action: <span id="last_action">idle</span>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: 1 / -1;">
+        <h2>Active Alarms</h2>
+
+        <ul id="alarms" class="alarm-list">
+          <li>No active alarms</li>
+        </ul>
+
+        <p class="small">
+          Alarms cover node offline, sensor fault, stale sensor data,
+          relay mismatch, MQTT faults, and distributed node faults.
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "active_run": null,
+  "controller": "sprinkler",
+  "days": ["sat", "sun"],
+  "duration_minutes": 10,
+  "enabled": true,
+  "hardware_sync_required": false,
+  "hardware_synced": true,
+  "last_run_key": null,
+  "last_scheduler_event": {
+    "message": "Rain likely. Skip or delay the next irrigation run.",
+    "time": 0,
+    "type": "skip_next_run"
+  },
+  "skip_if_rain_likely": true,
+  "skip_next_run": true,
+  "skip_reason": "Rain likely. Skip or delay the next irrigation run.",
+  "start_time": "06:00",
+  "updated_at": 0,
+  "zones": [1, 2, 3, 4, 5, 6, 7, 8]
+}
