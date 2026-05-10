@@ -52,6 +52,7 @@ hvac_state: dict[str, Any] = {
     "hvac_mode": "auto",
     "hvac_state": "OFFLINE",
 
+    # Commanded/control state from this controller
     "cooling": False,
     "heating": False,
     "fan": False,
@@ -61,6 +62,7 @@ hvac_state: dict[str, Any] = {
     "fan_active": False,
     "fan_on": False,
 
+    # Physical relay feedback from ESP32
     "relay_cool": False,
     "relay_heat": False,
     "relay_fan": False,
@@ -70,6 +72,7 @@ hvac_state: dict[str, Any] = {
     "relay_heat_stage1": False,
     "relay_heat_stage2": False,
 
+    # Commanded stages from this controller
     "cool_stage": 0,
     "heat_stage": 0,
 
@@ -78,6 +81,8 @@ hvac_state: dict[str, Any] = {
     "heat_stage1": False,
     "heat_stage2": False,
 
+    # Node-reported feedback fields.
+    # These are feedback only. They must not re-command equipment.
     "node_cool_stage": 0,
     "node_heat_stage": 0,
     "node_cooling": False,
@@ -291,10 +296,24 @@ def _clear_runtime_when_offline_locked() -> None:
     hvac_state["node_heating"] = False
     hvac_state["node_fan"] = False
 
+    hvac_state["fan_post_run_until"] = 0.0
+    hvac_state["fan_post_run_remaining"] = 0
+
     hvac_state["hvac_state"] = "OFFLINE"
 
 
 def _sync_stage_aliases_locked() -> None:
+    """
+    Sync aliases safely.
+
+    Critical rule:
+    - cooling/heating/fan are COMMANDED state.
+    - relay_* and node_* are FEEDBACK state.
+    - feedback must not re-command equipment.
+
+    This prevents a stale ESP32 relay report from forcing the controller back
+    into COOLING/HEATING after the control loop has commanded equipment off.
+    """
     relay_cool_stage1 = bool(hvac_state.get("relay_cool_stage1"))
     relay_cool_stage2 = bool(hvac_state.get("relay_cool_stage2"))
     relay_heat_stage1 = bool(hvac_state.get("relay_heat_stage1"))
@@ -314,88 +333,73 @@ def _sync_stage_aliases_locked() -> None:
 
     relay_fan = bool(hvac_state.get("relay_fan"))
 
+    # Keep relay feedback visible.
     hvac_state["relay_cool"] = relay_cool
     hvac_state["relay_heat"] = relay_heat
     hvac_state["relay_fan"] = relay_fan
 
-    node_cool_stage = _safe_int(hvac_state.get("node_cool_stage"), 0)
-    node_heat_stage = _safe_int(hvac_state.get("node_heat_stage"), 0)
+    commanded_cool_stage = _safe_int(hvac_state.get("cool_stage"), 0)
+    commanded_heat_stage = _safe_int(hvac_state.get("heat_stage"), 0)
 
-    cool_stage = max(
-        _safe_int(hvac_state.get("cool_stage"), 0),
-        node_cool_stage,
-        2 if relay_cool_stage2 else 1 if relay_cool_stage1 or relay_cool else 0,
+    # IMPORTANT:
+    # Do not include node_cooling/node_heating/node_fan or relay_* here.
+    # Those are feedback only and can be stale briefly.
+    cooling_commanded = bool(
+        hvac_state.get("cooling_active")
+        or commanded_cool_stage >= 1
     )
 
-    heat_stage = max(
-        _safe_int(hvac_state.get("heat_stage"), 0),
-        node_heat_stage,
-        2 if relay_heat_stage2 else 1 if relay_heat_stage1 or relay_heat else 0,
+    heating_commanded = bool(
+        hvac_state.get("heating_active")
+        or commanded_heat_stage >= 1
     )
+
+    # Never allow both heat and cool to be true in public state.
+    if cooling_commanded and heating_commanded:
+        last_action = str(hvac_state.get("last_action") or "").lower()
+        if last_action.startswith("heat"):
+            cooling_commanded = False
+        else:
+            heating_commanded = False
+
+    cool_stage = commanded_cool_stage if cooling_commanded else 0
+    heat_stage = commanded_heat_stage if heating_commanded else 0
 
     hvac_state["cool_stage"] = cool_stage
     hvac_state["heat_stage"] = heat_stage
 
-    hvac_state["cool_stage1"] = bool(
-        cool_stage >= 1
-        or relay_cool_stage1
-        or relay_cool
-    )
+    hvac_state["cool_stage1"] = bool(cooling_commanded and cool_stage >= 1)
+    hvac_state["cool_stage2"] = bool(cooling_commanded and cool_stage >= 2)
 
-    hvac_state["cool_stage2"] = bool(
-        cool_stage >= 2
-        or relay_cool_stage2
-    )
+    hvac_state["heat_stage1"] = bool(heating_commanded and heat_stage >= 1)
+    hvac_state["heat_stage2"] = bool(heating_commanded and heat_stage >= 2)
 
-    hvac_state["heat_stage1"] = bool(
-        heat_stage >= 1
-        or relay_heat_stage1
-        or relay_heat
-    )
-
-    hvac_state["heat_stage2"] = bool(
-        heat_stage >= 2
-        or relay_heat_stage2
-    )
-
-    cooling = bool(
-        hvac_state.get("node_cooling")
-        or hvac_state.get("cooling_active")
-        or relay_cool
-        or cool_stage >= 1
-    )
-
-    heating = bool(
-        hvac_state.get("node_heating")
-        or hvac_state.get("heating_active")
-        or relay_heat
-        or heat_stage >= 1
-    )
-
-    fan = bool(
-        hvac_state.get("node_fan")
-        or hvac_state.get("fan_active")
+    fan_commanded = bool(
+        hvac_state.get("fan_active")
         or hvac_state.get("fan_on")
-        or relay_fan
-        or cooling
-        or heating
+        or cooling_commanded
+        or heating_commanded
     )
 
-    hvac_state["cooling"] = cooling
-    hvac_state["heating"] = heating
-    hvac_state["fan"] = fan
+    hvac_state["cooling"] = cooling_commanded
+    hvac_state["heating"] = heating_commanded
+    hvac_state["fan"] = fan_commanded
 
-    hvac_state["cooling_active"] = cooling
-    hvac_state["heating_active"] = heating
-    hvac_state["fan_active"] = fan
-    hvac_state["fan_on"] = fan
+    hvac_state["cooling_active"] = cooling_commanded
+    hvac_state["heating_active"] = heating_commanded
+    hvac_state["fan_active"] = fan_commanded
+    hvac_state["fan_on"] = fan_commanded
 
-    if cooling:
+    if cooling_commanded:
         hvac_state["hvac_state"] = "COOLING"
-    elif heating:
+    elif heating_commanded:
         hvac_state["hvac_state"] = "HEATING"
-    elif fan:
-        hvac_state["hvac_state"] = "FAN"
+    elif fan_commanded:
+        fan_until = float(hvac_state.get("fan_post_run_until") or 0)
+        if fan_until and now() < fan_until:
+            hvac_state["hvac_state"] = "FAN_POST_RUN"
+        else:
+            hvac_state["hvac_state"] = "FAN"
     else:
         hvac_state["hvac_state"] = "IDLE"
 
@@ -751,8 +755,14 @@ def set_setpoint(sp: int) -> None:
         raise ValueError("setpoint out of range")
 
     with state_lock:
+        old_sp = _safe_int(hvac_state.get("setpoint"), 72)
+
         hvac_state["setpoint"] = sp
-        hvac_state["last_action"] = f"setpoint->{sp}"
+
+        if old_sp != sp:
+            hvac_state["last_action"] = f"setpoint->{sp}"
+        else:
+            hvac_state["last_action"] = f"setpoint unchanged->{sp}"
 
         _sync_state_locked()
 
@@ -766,11 +776,23 @@ def set_mode(mode: str) -> None:
         raise ValueError("invalid mode")
 
     with state_lock:
+        old_mode = str(
+            hvac_state.get("mode")
+            or hvac_state.get("system_mode")
+            or hvac_state.get("hvac_mode")
+            or "auto"
+        ).strip().lower()
+
         hvac_state["mode"] = mode
         hvac_state["system_mode"] = mode
         hvac_state["hvac_mode"] = mode
-        hvac_state["last_mode_change"] = now()
-        hvac_state["last_action"] = f"mode->{mode}"
+
+        # Only reset changeover timing when mode actually changes.
+        if old_mode != mode:
+            hvac_state["last_mode_change"] = now()
+            hvac_state["last_action"] = f"mode->{mode}"
+        else:
+            hvac_state["last_action"] = f"mode unchanged->{mode}"
 
         _sync_state_locked()
 
@@ -798,8 +820,14 @@ def set_fan_mode(mode: str) -> None:
         raise ValueError("invalid fan mode")
 
     with state_lock:
+        old_mode = str(hvac_state.get("fan_mode") or "auto").strip().lower()
+
         hvac_state["fan_mode"] = mode
-        hvac_state["last_action"] = f"fan_mode->{mode}"
+
+        if old_mode != mode:
+            hvac_state["last_action"] = f"fan_mode->{mode}"
+        else:
+            hvac_state["last_action"] = f"fan_mode unchanged->{mode}"
 
         _sync_state_locked()
 
