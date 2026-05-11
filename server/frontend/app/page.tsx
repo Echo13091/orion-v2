@@ -495,9 +495,7 @@ function timelineZoneLabel(value: unknown) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "Zone --";
 
-  // Green sprinkler controller computed_schedule uses zero-based zone indexes.
-  if (n >= 0 && n <= 7) return `Zone ${n + 1}`;
-
+  // Sprinkler controller now returns display zone numbers 1-8.
   return `Zone ${n}`;
 }
 
@@ -505,9 +503,7 @@ function timelineZoneNumber(value: unknown) {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
 
-  // Computed schedule zone is zero-based, display zone is one-based.
-  if (n >= 0 && n <= 7) return n + 1;
-
+  // Sprinkler controller now returns display zone numbers 1-8.
   return n;
 }
 
