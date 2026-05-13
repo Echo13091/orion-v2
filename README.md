@@ -8,7 +8,30 @@ Unlike a simulated dashboard, Orion controls and monitors real hardware.
 
 ---
 
+
+## Recruiter Summary
+
+Orion V2 demonstrates full-stack software development, embedded systems integration, real-time telemetry, REST API design, MQTT communication, hardware control, and edge deployment. The system controls real H>
+
+---
+
+## Key Technical Skills Demonstrated
+
+- Full-stack application development with Flask, Next.js, React, and TypeScript
+- REST API design for device control and telemetry
+- MQTT-based communication between distributed devices
+- Raspberry Pi field-controller integration
+- ESP32 relay-node firmware and hardware control
+- Real-time dashboard monitoring for HVAC and irrigation systems
+- Weather-aware irrigation scheduling and automation logic
+- AI-assisted decision recommendations using local LLM tooling
+- NVIDIA Jetson edge deployment
+- Safety-focused control logic, fault tracking, and system recovery design
+
+---
+
 ## Screenshots
+
 
 ### AI-Assisted Automation
 
@@ -21,6 +44,20 @@ Orion monitors live system state and provides automation recommendations based o
 ![Orion Device Dashboard](docs/screenshots/orion-device-dashboard.jpg)
 
 The dashboard displays real-time weather, irrigation scheduling, HVAC state, telemetry, and device health from the distributed system.
+
+### Fault Handling and System Health
+
+Orion includes fault-aware monitoring for distributed field devices. The dashboard can display healthy system state, detect fault conditions, and surface controller or node-level issues for troubleshooting.
+
+#### Healthy System State
+
+![Healthy system state](docs/screenshots/fault-dashboard-healthy.jpeg)
+
+#### Distributed Fault Detection
+
+![Distributed fault detection](docs/screenshots/fault-dashboard-node-fault.jpeg)
+
+Fault handling is designed to make hardware state visible at the application layer instead of hiding failures inside the field controller. This helps support safer automation, easier troubleshooting, and better system reliability.
 
 ---
 
