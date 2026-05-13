@@ -138,7 +138,7 @@ type OrionRecommendation = {
 };
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:5001";
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://192.168.7.230:5001";
 
 const SYSTEM_POLL_MS = Number(process.env.NEXT_PUBLIC_SYSTEM_POLL_MS ?? "3000");
 
@@ -231,7 +231,7 @@ function formatPrecip(value?: number | null) {
   return Number.isFinite(value) ? `${Number(value).toFixed(2)} in` : "--";
 }
 
-function formatScheduleSummary(schedule?: IrrigationSchedule | null) {
+function formatScheduleSummary(schedule?: IrrigationSchedule | null): string {
   if (!schedule) return "No schedule";
   if (schedule.enabled === false) return "Schedule off";
 
@@ -2125,23 +2125,28 @@ export default function Home() {
               primaryLabel="Current state"
               primaryValue={sprinklerStatus}
               metrics={[
-                {
-                  label: "Mode",
-                  value: formatMode(system?.sprinkler?.mode),
-                },
-                {
-                  label: "Zone",
-                  value: formatZone(system?.sprinkler?.zone),
-                },
-                {
-                  label: "Schedule",
-                  value: system?.sprinkler?.next_run || formatScheduleSummary(system?.irrigation_schedule),
-                },
-                {
-                  label: "Online",
-                  value: yesNo(system?.sprinkler?.online),
-                  state: onlineState(system?.sprinkler?.online),
-                },
+{
+  label: "Mode",
+  value: formatMode(system?.sprinkler?.mode),
+},
+{
+  label: "Zone",
+  value: "—",
+},
+{
+  label: "Schedule",
+  value: String(
+    typeof system?.sprinkler?.next_run === "string" &&
+      system.sprinkler.next_run.trim()
+      ? system.sprinkler.next_run
+      : formatScheduleSummary(system?.irrigation_schedule)
+  ),
+},
+{
+  label: "Online",
+  value: yesNo(system?.sprinkler?.online),
+  state: onlineState(system?.sprinkler?.online),
+},
               ]}
             >
               <div className="space-y-4">
