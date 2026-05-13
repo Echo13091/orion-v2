@@ -262,7 +262,25 @@ This prevents the dashboard or AI orchestration layer from becoming a single poi
 * Relay-control hardware
 * HVAC equipment integration
 * Irrigation hardware integration
+---
+# Where Orion V2 Can Grow
 
+Orion V2 is currently focused on HVAC and irrigation control, but the architecture is designed to expand into a broader edge automation platform.
+
+The same distributed pattern — NVIDIA Jetson application layer, Raspberry Pi field controllers, ESP32 edge nodes, MQTT messaging, real-time telemetry, fault tracking, and AI-assisted operational recommendations — can support additional real-world systems such as:
+
+* Environmental monitoring
+* Lighting control
+* Pump and motor systems
+* Energy management
+* Security and sensor networks
+* Distributed equipment supervision
+* Predictive maintenance workflows
+* Remote edge-device coordination
+
+The long-term goal is to evolve Orion into a scalable edge AI and industrial IoT platform capable of monitoring, coordinating, and automating multiple physical systems from a unified operational dashboard.
+
+The platform is intentionally modular so additional field controllers, edge nodes, telemetry pipelines, and automation services can be integrated without redesigning the overall system architecture.
 ---
 
 # Repository Structure
