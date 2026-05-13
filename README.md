@@ -1,8 +1,8 @@
-# Orion V2 — Distributed IoT Control Platform
+# Orion V2 — Distributed AI-Assisted IoT Control Platform
 
-Full-stack IoT automation platform for real-time HVAC and irrigation control using Python, React, Raspberry Pi, ESP32, MQTT, and REST APIs.
+Orion V2 is a distributed AI-assisted IoT control platform that connects a web dashboard, Flask backend, Raspberry Pi field controllers, and ESP32 relay nodes to monitor and control real HVAC and irrigation hardware.
 
-Orion V2 connects a local application server, Raspberry Pi field controllers, and ESP32 edge nodes to monitor live device state, execute hardware commands, synchronize schedules, track faults, and support AI-assisted automation decisions.
+The system includes live telemetry, MQTT-based device communication, weather-aware irrigation logic, AI-assisted decision recommendations, hardware safety controls, schedule synchronization, REST APIs, and production-style deployment on NVIDIA Jetson edge hardware.
 
 Unlike a simulated dashboard, Orion controls and monitors real hardware.
 
