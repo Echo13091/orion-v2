@@ -405,6 +405,132 @@ function getExecutionSummary(system?: SystemState | null): {
   };
 }
 
+
+function getHvacOverview(system?: SystemState | null) {
+  const raw = isRecord(system?.thermostat?.raw)
+    ? (system?.thermostat?.raw as Record<string, unknown>)
+    : null;
+
+  const cooling = Boolean(system?.thermostat?.cooling || raw?.cooling);
+  const heating = Boolean(system?.thermostat?.heating || raw?.heating);
+  const fan = Boolean(system?.thermostat?.fan || raw?.fan || raw?.fan_on || raw?.fan_active);
+  const online = system?.thermostat?.online !== false && raw?.online !== false && raw?.node_online !== false;
+  const fault = Boolean(system?.fault || raw?.fault);
+
+  const coolStage = coerceNumber(raw?.cool_stage ?? raw?.node_cool_stage, cooling ? 1 : 0);
+  const heatStage = coerceNumber(raw?.heat_stage ?? raw?.node_heat_stage, heating ? 1 : 0);
+  const heartbeatAge = coerceNumber(raw?.last_heartbeat_msg_age ?? raw?.last_node_msg_age ?? raw?.last_sensor_msg_age, -1);
+  const sensorStatus = formatMode(optionalString(raw?.sensor_status) || optionalString(raw?.dht_raw_status) || optionalString(raw?.dht_status) || "unknown");
+  const sensorStaleTimeout = coerceNumber(raw?.sensor_stale_timeout, 45);
+  const relayFeedbackTimeout = coerceNumber(raw?.relay_feedback_timeout, 12);
+
+  let status = "Idle";
+  let stage = "Standby";
+  let state: StatusState = online ? "good" : "bad";
+
+  if (!online) {
+    status = "Offline";
+    stage = "No telemetry";
+  } else if (fault) {
+    status = "Fault";
+    stage = optionalString(raw?.fault_code) || "Needs attention";
+    state = "bad";
+  } else if (cooling) {
+    status = "Cooling";
+    stage = coolStage >= 2 ? "Stage 2 Active" : "Stage 1 Active";
+    state = "active";
+  } else if (heating) {
+    status = "Heating";
+    stage = heatStage >= 2 ? "Stage 2 Active" : "Stage 1 Active";
+    state = "active";
+  }
+
+  const heartbeat = heartbeatAge < 0
+    ? "Waiting"
+    : heartbeatAge <= 5
+      ? `${heartbeatAge}s ago`
+      : `${heartbeatAge}s ago · delayed`;
+
+  return {
+    status,
+    stage,
+    fan: fan ? "Running" : "Idle",
+    health: fault ? "Fault detected" : online ? "Healthy" : "Offline",
+    heartbeat,
+    sensor: sensorStatus === "Unknown" ? "Waiting" : sensorStatus,
+    sensorFreshness: heartbeatAge >= 0 && heartbeatAge <= sensorStaleTimeout ? "Healthy" : "Check telemetry",
+    relayVerification: relayFeedbackTimeout > 0 ? "Active" : "Not configured",
+    state,
+  };
+}
+
+function getSprinklerOverview(system?: SystemState | null) {
+  const raw = isRecord(system?.sprinkler?.raw)
+    ? (system?.sprinkler?.raw as Record<string, unknown>)
+    : null;
+
+  const running = Boolean(system?.sprinkler?.running || raw?.running);
+  const online = system?.sprinkler?.online !== false && raw?.online !== false && raw?.node_online !== false && raw?.controller_online !== false;
+  const fault = Boolean(system?.fault || raw?.fault);
+  const zone = system?.sprinkler?.zone ?? raw?.zone ?? raw?.active_zone ?? raw?.current_zone;
+  const heartbeatAge = coerceNumber(raw?.last_heartbeat_msg_age ?? raw?.last_node_msg_age ?? raw?.last_controller_msg_age, -1);
+  const activeRelays = Array.isArray(raw?.relay_zones)
+    ? raw.relay_zones.filter(Boolean).length
+    : Array.isArray(raw?.zones)
+      ? raw.zones.filter(Boolean).length
+      : running
+        ? 1
+        : 0;
+
+  const nextRun = system?.sprinkler?.next_run ?? raw?.next_run ?? null;
+  const heartbeat = heartbeatAge < 0
+    ? "Waiting"
+    : heartbeatAge <= 5
+      ? `${heartbeatAge}s ago`
+      : `${heartbeatAge}s ago · delayed`;
+
+  return {
+    status: !online ? "Offline" : running ? "Running" : "Idle",
+    zone: running ? formatZone(zone as string | number | null) : "No active zone",
+    nextRun: nextRun ? formatMetricValue(nextRun) : formatScheduleSummary(system?.irrigation_schedule),
+    health: fault ? "Fault detected" : online ? "Healthy" : "Offline",
+    heartbeat,
+    relays: `${activeRelays} active`,
+    controller: formatScheduleController(system?.irrigation_schedule),
+    state: !online ? ("bad" as StatusState) : running ? ("active" as StatusState) : ("good" as StatusState),
+  };
+}
+
+function getSystemOverview(system?: SystemState | null) {
+  const thermostatOnline = system?.thermostat?.online !== false;
+  const sprinklerOnline = system?.sprinkler?.online !== false;
+  const rainChance = Number(system?.weather?.rain_chance ?? 0);
+
+  if (!system) {
+    return {
+      supervisor: "Waiting",
+      mqtt: "Waiting",
+      ai: "Waiting",
+      faults: "Waiting",
+      automation: "Waiting",
+      weather: "Waiting",
+      nodeSummary: "Waiting",
+    };
+  }
+
+  const onlineCount = [thermostatOnline, sprinklerOnline].filter(Boolean).length;
+
+  return {
+    supervisor: "Online",
+    mqtt: thermostatOnline && sprinklerOnline ? "Healthy" : "Node issue",
+    ai: system.ai_status?.toLowerCase() === "active" ? "Active" : formatMode(system.ai_status),
+    faults: system.fault ? "Fault present" : "No faults",
+    automation: system.automation_mode === "auto" ? "Auto execute" : "Manual apply",
+    weather: rainChance >= 70 ? "Rain likely" : rainChance >= 40 ? "Rain possible" : "Normal",
+    nodeSummary: `${onlineCount}/2 services online`,
+  };
+}
+
 function getManualOverrideSummary(system?: SystemState | null) {
   const until = Number(system?.manual_override_until ?? 0);
   const remainingMs = until > 1_000_000_000_000 ? until - Date.now() : until * 1000 - Date.now();
@@ -1176,6 +1302,18 @@ export default function Home() {
     return getManualOverrideSummary(system);
   }, [system]);
 
+  const hvacOverview = useMemo(() => {
+    return getHvacOverview(system);
+  }, [system]);
+
+  const sprinklerOverview = useMemo(() => {
+    return getSprinklerOverview(system);
+  }, [system]);
+
+  const systemOverview = useMemo(() => {
+    return getSystemOverview(system);
+  }, [system]);
+
   const irrigationTimeline = useMemo(() => {
     return getIrrigationTimeline(system);
   }, [system]);
@@ -1852,6 +1990,103 @@ export default function Home() {
 
       <main className="relative mx-auto grid max-w-[1800px] grid-cols-1 gap-4 px-5 py-4 xl:h-[calc(100vh-69px)] xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_420px] xl:overflow-hidden">
         <section className="min-h-0 space-y-4 xl:overflow-y-auto xl:pr-1">
+          <Panel>
+            <PanelHeader
+              title="System Overview"
+              subtitle="Distributed edge orchestration status"
+              right={<StatusPill label={lastUpdatedLabel} state="neutral" />}
+            />
+
+            <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-6">
+              <MetricTile
+                label="Supervisor"
+                value={systemOverview.supervisor}
+                state={system ? "good" : "neutral"}
+              />
+              <MetricTile
+                label="HVAC"
+                value={`${hvacOverview.status} · ${hvacOverview.stage}`}
+                state={hvacOverview.state}
+              />
+              <MetricTile
+                label="Irrigation"
+                value={sprinklerOverview.status}
+                state={sprinklerOverview.state}
+              />
+              <MetricTile
+                label="MQTT"
+                value={systemOverview.mqtt}
+                state={systemOverview.mqtt === "Healthy" ? "good" : systemOverview.mqtt === "Waiting" ? "neutral" : "warn"}
+              />
+              <MetricTile
+                label="AI Engine"
+                value={systemOverview.ai}
+                state={systemOverview.ai === "Active" ? "active" : "neutral"}
+              />
+              <MetricTile
+                label="Faults"
+                value={systemOverview.faults}
+                state={system?.fault ? "bad" : system ? "good" : "neutral"}
+              />
+            </div>
+
+            <div className="border-t border-slate-800/80 p-5">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white">
+                        HVAC Runtime State
+                      </div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        Live equipment, sensor, and relay status
+                      </div>
+                    </div>
+                    <StatusPill
+                      label={hvacOverview.health}
+                      state={system?.fault ? "bad" : hvacOverview.state === "bad" ? "bad" : "good"}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Equipment" value={hvacOverview.status} state={hvacOverview.state} />
+                    <Field label="Active Stage" value={hvacOverview.stage} state={hvacOverview.state} />
+                    <Field label="Fan" value={hvacOverview.fan} state={hvacOverview.fan === "Running" ? "active" : "neutral"} />
+                    <Field label="Heartbeat" value={hvacOverview.heartbeat} />
+                    <Field label="Sensor" value={hvacOverview.sensor} state={hvacOverview.sensorFreshness === "Healthy" ? "good" : "warn"} />
+                    <Field label="Relay Check" value={hvacOverview.relayVerification} state={hvacOverview.relayVerification === "Active" ? "good" : "neutral"} />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white">
+                        Irrigation Runtime State
+                      </div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        Distributed sprinkler controller status
+                      </div>
+                    </div>
+                    <StatusPill
+                      label={sprinklerOverview.health}
+                      state={system?.fault ? "bad" : sprinklerOverview.state === "bad" ? "bad" : "good"}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="System" value={sprinklerOverview.status} state={sprinklerOverview.state} />
+                    <Field label="Active Zone" value={sprinklerOverview.zone} state={sprinklerOverview.state} />
+                    <Field label="Next Run" value={sprinklerOverview.nextRun} />
+                    <Field label="Heartbeat" value={sprinklerOverview.heartbeat} />
+                    <Field label="Relay State" value={sprinklerOverview.relays} state={sprinklerOverview.relays.startsWith("0") ? "neutral" : "active"} />
+                    <Field label="Controller" value={sprinklerOverview.controller} state="good" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Panel>
+
           <CollapsibleCard
             icon="🤖"
             title="Orion AI"
@@ -2123,7 +2358,7 @@ export default function Home() {
               status={sprinklerStatus}
               statusState={sprinklerPillState}
               primaryLabel="Current state"
-              primaryValue={sprinklerStatus}
+              primaryValue={sprinklerOverview.status}
               metrics={[
 {
   label: "Mode",
@@ -2131,16 +2366,12 @@ export default function Home() {
 },
 {
   label: "Zone",
-  value: "—",
+  value: sprinklerOverview.zone,
+  state: sprinklerOverview.state,
 },
 {
   label: "Schedule",
-  value: String(
-    typeof system?.sprinkler?.next_run === "string" &&
-      system.sprinkler.next_run.trim()
-      ? system.sprinkler.next_run
-      : formatScheduleSummary(system?.irrigation_schedule)
-  ),
+  value: sprinklerOverview.nextRun,
 },
 {
   label: "Online",
@@ -2306,7 +2537,7 @@ export default function Home() {
 
                 <details className="rounded-2xl border border-slate-800/80 bg-slate-950/30">
                   <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-medium text-slate-400 transition hover:text-slate-100 [&::-webkit-details-marker]:hidden">
-                    More sprinkler actions and technical details
+                    More sprinkler actions
                   </summary>
                   <div className="space-y-3 border-t border-slate-800/80 p-3">
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -2357,9 +2588,9 @@ export default function Home() {
               primaryValue={formatTemp(system?.thermostat?.temp)}
               metrics={[
                 {
-                  label: "Status",
-                  value: thermostatStatus,
-                  state: thermostatPillState,
+                  label: "Equipment",
+                  value: hvacOverview.status,
+                  state: hvacOverview.state,
                 },
                 {
                   label: "Humidity",
@@ -2371,17 +2602,17 @@ export default function Home() {
                 },
                 {
                   label: "Fan",
-                  value: onOff(system?.thermostat?.fan),
-                  state: system?.thermostat?.fan ? "active" : "neutral",
+                  value: hvacOverview.fan,
+                  state: hvacOverview.fan === "Running" ? "active" : "neutral",
                 },
               ]}
             >
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Online" value={yesNo(system?.thermostat?.online)} state={onlineState(system?.thermostat?.online)} />
-                  <Field label="Cooling" value={onOff(system?.thermostat?.cooling)} state={activeState(system?.thermostat?.cooling)} />
-                  <Field label="Heating" value={onOff(system?.thermostat?.heating)} state={activeState(system?.thermostat?.heating)} />
-                  <Field label="Source" value={system?.thermostat?.source || "--"} />
+                  <Field label="Equipment" value={hvacOverview.status} state={hvacOverview.state} />
+                  <Field label="Active Stage" value={hvacOverview.stage} state={hvacOverview.state} />
+                  <Field label="Sensor Freshness" value={hvacOverview.sensorFreshness} state={hvacOverview.sensorFreshness === "Healthy" ? "good" : "warn"} />
                 </div>
 
                 {system?.thermostat?.error && (
@@ -2414,7 +2645,7 @@ export default function Home() {
 
                 <details className="rounded-2xl border border-slate-800/80 bg-slate-950/30">
                   <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-medium text-slate-400 transition hover:text-slate-100 [&::-webkit-details-marker]:hidden">
-                    HVAC, fan, and technical details
+                    HVAC and fan controls
                   </summary>
                   <div className="space-y-3 border-t border-slate-800/80 p-3">
                     <div className="grid gap-3 sm:grid-cols-2">
