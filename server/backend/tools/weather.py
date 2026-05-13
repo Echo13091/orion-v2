@@ -7,7 +7,7 @@ from urllib.parse import quote
 import requests
 
 
-WEATHER_LOCATION = os.getenv("WEATHER_LOCATION", "auto").strip()
+WEATHER_LOCATION = os.getenv("ORION_WEATHER_LOCATION", "Brandon,FL").strip()
 WEATHER_CACHE_SECONDS = int(os.getenv("WEATHER_CACHE_SECONDS", "600"))
 
 _weather_lock = Lock()

@@ -16,11 +16,11 @@ CODE_LLM_ENABLED = os.getenv("ORION_CODE_LLM_ENABLED", "0" if EDGE_MODE else "1"
 MODELS = {
     # TinyLlama is the lowest-friction RPi-friendly default. Override with
     # ORION_MODEL_DEFAULT=phi3:mini if your Pi/mini-PC has enough RAM.
-    "default": os.getenv("ORION_MODEL_DEFAULT", "tinyllama:1.1b"),
+    "default": os.getenv("ORION_MODEL_DEFAULT", "mistral"),
     "code": os.getenv("ORION_MODEL_CODE", "deepseek-coder:6.7b"),
 }
 
-DEFAULT_TIMEOUT_SECONDS = float(os.getenv("ORION_LLM_TIMEOUT_SECONDS", "12"))
+DEFAULT_TIMEOUT_SECONDS = float(os.getenv("ORION_LLM_TIMEOUT_SECONDS", "60"))
 DEFAULT_NUM_PREDICT = int(os.getenv("ORION_LLM_NUM_PREDICT", "180"))
 DEFAULT_NUM_CTX = int(os.getenv("ORION_LLM_NUM_CTX", "1024"))
 
@@ -52,7 +52,7 @@ def _options() -> dict[str, Any]:
         "num_ctx": DEFAULT_NUM_CTX,
         "num_predict": DEFAULT_NUM_PREDICT,
         # Ollama ignores unsupported options on many builds/models; keep this low.
-        "num_gpu": int(os.getenv("ORION_LLM_NUM_GPU", "0" if EDGE_MODE else "1")),
+        "num_gpu": int(os.getenv("ORION_LLM_NUM_GPU", "1" if EDGE_MODE else "1")),
     }
 
 
