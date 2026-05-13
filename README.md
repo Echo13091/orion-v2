@@ -11,7 +11,9 @@ Unlike a simulated dashboard, Orion controls and monitors real hardware.
 
 ## Recruiter Summary
 
-Orion V2 demonstrates full-stack software development, embedded systems integration, real-time telemetry, REST API design, MQTT communication, hardware control, and edge deployment. The system controls real H>
+Orion V2 is a portfolio project demonstrating full-stack software development, embedded systems integration, real-time telemetry, REST API design, MQTT communication, and edge-device deployment.
+
+The system controls real HVAC and irrigation hardware through Raspberry Pi and ESP32 field devices, with a web dashboard, fault visibility, weather-aware automation, and AI-assisted decision support.
 
 ---
 
