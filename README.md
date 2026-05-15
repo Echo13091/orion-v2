@@ -6,27 +6,84 @@ The platform runs on NVIDIA Jetson edge hardware and communicates with Raspberry
 
 Unlike a simulated dashboard project, Orion monitors and controls physical hardware in real time.
 
+The goal of Orion is not just to control devices. The goal is to build a practical distributed control platform that can observe hardware state, reason about system conditions, detect faults, recommend safe actions, and provide a clean dashboard for real-world automation.
+
 ---
 
-# Quick Overview
+## Quick Overview
+
+Orion V2 is a distributed automation system built around real HVAC and irrigation hardware.
+
+It includes:
+
+- central Orion dashboard
+- backend API layer
+- local AI-assisted automation logic
+- live system telemetry
+- HVAC control integration
+- sprinkler / irrigation control integration
+- Raspberry Pi field controllers
+- ESP32 relay nodes
+- MQTT and HTTP communication
+- weather-aware irrigation decisions
+- fault detection and recovery states
+- manual and automatic execution modes
+- persistent system state
+- NVIDIA Jetson edge deployment
+- architecture and deployment documentation
+
+Orion is designed as a practical full-stack, embedded, IoT, and automation system built around real hardware.
+
+---
+
+## What This Project Demonstrates
 
 Orion V2 demonstrates:
 
-* Distributed system architecture
-* Full-stack application development
-* Real-time telemetry and monitoring
-* MQTT-based device communication
-* Raspberry Pi field-controller integration
-* ESP32 embedded firmware integration
-* HVAC and irrigation automation
-* Fault detection and operational visibility
-* AI-assisted operational recommendations
-* NVIDIA Jetson edge deployment
-* Safety-focused control logic and fail-safe behavior
+- distributed system architecture
+- full-stack application development
+- real-time telemetry and monitoring
+- MQTT-based device communication
+- Raspberry Pi field-controller integration
+- ESP32 embedded firmware integration
+- HVAC and irrigation automation
+- fault detection and operational visibility
+- AI-assisted operational recommendations
+- NVIDIA Jetson edge deployment
+- safety-focused control logic and fail-safe behavior
+- system reliability and debugging
 
 ---
 
-# System Architecture
+## Screenshots
+
+### AI-Assisted Automation
+
+![Orion AI Recommendation](docs/screenshots/orion-ai-recommendation.jpg)
+
+Orion evaluates live telemetry, weather conditions, and device state to provide operational recommendations.
+
+### Live Device Dashboard
+
+![Orion Device Dashboard](docs/screenshots/orion-device-dashboard.jpg)
+
+The dashboard displays live HVAC state, irrigation scheduling, device telemetry, weather data, and distributed system health.
+
+### Healthy Distributed System State
+
+![Healthy system state](docs/screenshots/fault-dashboard-healthy.jpeg)
+
+The dashboard displays healthy controller and node communication across the distributed platform.
+
+### Distributed Fault Detection
+
+![Distributed fault detection](docs/screenshots/fault-dashboard-node-fault.jpeg)
+
+For validation, a thermostat field controller was intentionally powered down to confirm Orion detected the offline device, surfaced the fault condition, and preserved visibility into the remaining system state.
+
+---
+
+## System Architecture
 
 ```txt
 ┌──────────────────────────────────────────────┐
@@ -49,54 +106,300 @@ Orion V2 demonstrates:
 └──────────────────────────────────────────────┘
 ```
 
----
+Orion separates high-level automation logic from field-level hardware control.
 
-# Recruiter Summary
-
-Orion V2 is a portfolio project demonstrating software engineering, distributed systems design, embedded systems integration, telemetry pipelines, REST API development, edge-device deployment, and operational monitoring.
-
-The system uses a React dashboard, Python Flask backend, Raspberry Pi field controllers, and ESP32 relay nodes to monitor and control real HVAC and irrigation hardware.
-
-Key engineering focus areas include:
-
-* Distributed device coordination
-* Fault-aware monitoring
-* Hardware safety logic
-* Real-time telemetry
-* Embedded device communication
-* Edge-device deployment
-* AI-assisted operational recommendations
-* System reliability and fail-safe behavior
+The Orion dashboard and backend supervise the system. Raspberry Pi field controllers handle local device logic. ESP32 nodes handle relay-level control, telemetry, heartbeat publishing, and failsafe behavior.
 
 ---
 
-# Core Features
+## Engineering Summary
 
-## Real-Time Monitoring Dashboard
+Orion V2 demonstrates the ability to design and build a complete distributed automation platform that combines frontend development, backend APIs, embedded systems, hardware control, AI-assisted decision logic, and real-world fault handling.
+
+This project goes beyond a normal dashboard demo. Orion monitors real hardware, tracks live device state, uses AI-assisted recommendations, detects offline nodes, handles weather-aware irrigation decisions, and separates manual control from automatic execution.
+
+Key engineering areas:
+
+- full-stack application development
+- Python backend development
+- Flask API design
+- React / Next.js frontend development
+- TypeScript dashboard development
+- REST API integration
+- local AI / LLM integration
+- Raspberry Pi field-controller design
+- ESP32 embedded node integration
+- MQTT-based device communication
+- hardware relay control
+- real-time telemetry
+- system health monitoring
+- fault detection
+- persistent state management
+- safety-aware automation
+- distributed IoT system design
+- Linux deployment
+- systemd service patterns
+- edge automation architecture
+
+---
+
+## Core Purpose
+
+Orion V2 was built to answer a practical engineering question:
+
+```txt
+Can a local edge automation platform monitor real devices, understand system state, detect hardware problems, and recommend safer actions before controlling equipment?
+```
+
+Orion is designed around that goal.
+
+It does not blindly execute commands. It monitors system state, detects faults, displays recommendations, and gives the user visibility into what the automation layer is doing.
+
+---
+
+## What Makes Orion Different
+
+Many home automation projects are simple dashboards or relay toggles.
+
+Orion V2 is different because it combines:
+
+- real hardware control
+- live device status
+- AI-assisted recommendations
+- manual and automatic execution modes
+- fault-aware behavior
+- weather-aware irrigation logic
+- system health monitoring
+- field-controller separation
+- persistent state
+- local-first edge deployment
+
+The result is closer to a small distributed control platform than a basic home automation script.
+
+---
+
+## Main Components
+
+### NVIDIA Jetson Application Server
+
+The NVIDIA Jetson hosts the main Orion platform.
+
+It includes:
+
+- React / Next.js dashboard
+- Python Flask backend
+- REST API endpoints
+- AI orchestration layer
+- session and memory handling
+- global system state
+- device status aggregation
+- weather-aware automation logic
+
+The dashboard provides a live view of system health, device state, automation recommendations, and manual controls.
+
+### Orion Backend
+
+The backend is responsible for:
+
+- exposing API endpoints
+- collecting system state
+- routing device commands
+- running AI-assisted decision logic
+- storing persistent memory/state
+- tracking system health
+- coordinating HVAC and sprinkler integrations
+- reporting faults to the dashboard
+
+### Orion Frontend
+
+The frontend is responsible for:
+
+- displaying live automation state
+- showing system metrics
+- showing AI recommendations
+- showing HVAC status
+- showing sprinkler status
+- providing manual control inputs
+- displaying saved chat sessions
+- exposing the assistant interface
+- making the system understandable to the user
+
+### Raspberry Pi Field Controllers
+
+The Raspberry Pi field controllers are responsible for:
+
+- running local control logic
+- exposing device APIs
+- communicating with ESP32 nodes
+- reporting status to Orion
+- managing local runtime state
+- keeping device control close to the hardware
+- maintaining local schedule ownership
+- supporting fail-safe operation
+
+Current field controllers include:
+
+- HVAC controller
+- irrigation controller
+
+### ESP32 Edge Nodes
+
+The ESP32 nodes are responsible for:
+
+- relay-level control
+- sensor telemetry
+- MQTT communication
+- heartbeat publishing
+- relay feedback publishing
+- hardware state reporting
+- failsafe behavior when communication is lost
+
+---
+
+## Field Controller Independence
+
+HVAC and irrigation controllers are designed to run independently on the Raspberry Pi.
+
+Orion provides centralized monitoring, AI-assisted recommendations, and operator control, but each field controller maintains its own local runtime state, scheduling, safety logic, and fail-safe behavior if the central application server is unavailable.
+
+This separation keeps hardware execution close to the equipment and prevents the dashboard or AI layer from becoming a single point of failure.
+
+---
+
+## Supported Hardware Layers
+
+Orion V2 is designed around this distributed hardware model:
+
+```txt
+NVIDIA Jetson Application Server
+        ↓
+Raspberry Pi Field Controller
+        ↓
+ESP32 Node
+        ↓
+Relay Board / Sensors
+        ↓
+Real Equipment
+```
+
+Current hardware integrations include:
+
+- HVAC controller
+- sprinkler / irrigation controller
+- Raspberry Pi field-controller layer
+- ESP32 relay-node layer
+- local network communication
+- MQTT messaging
+- relay feedback / heartbeat status
+
+---
+
+## Core Features
+
+### Real-Time Monitoring Dashboard
 
 Orion provides a live operational dashboard displaying:
 
-* HVAC state
-* Irrigation scheduling
-* Weather conditions
-* Device health
-* System telemetry
-* CPU / memory / GPU utilization
-* AI recommendations
-* Fault state visibility
-* Controller and node status
+- weather conditions
+- HVAC state
+- irrigation schedule
+- system health
+- CPU / memory / GPU monitoring
+- automation mode
+- AI recommendations
+- saved assistant sessions
+- device health
+- fault state
+- controller and node status
+- manual controls
 
----
-
-## Distributed Device Communication
+### Distributed Device Communication
 
 The platform uses MQTT messaging between:
 
-* NVIDIA Jetson application server
-* Raspberry Pi field controllers
-* ESP32 edge nodes
+- NVIDIA Jetson application server
+- Raspberry Pi field controllers
+- ESP32 edge nodes
 
 This allows Orion to distribute control logic, telemetry, and hardware state across multiple independent devices.
+
+### AI-Assisted Recommendations
+
+Orion can evaluate live system state and produce a recommendation.
+
+Example recommendation:
+
+```json
+{
+  "action": "delay_irrigation",
+  "reason": "Rain likely. Skip or delay the next irrigation run.",
+  "confidence": "high"
+}
+```
+
+The AI recommendation layer is designed to assist automation decisions, not blindly replace deterministic safety logic.
+
+### Manual and Automatic Execution Modes
+
+Orion separates recommendation from execution.
+
+Supported execution modes include:
+
+- manual mode
+- automatic mode
+- autonomous monitoring
+- manual override
+
+This allows Orion to recommend actions while still giving the user control over whether hardware actions should be applied automatically.
+
+### Device Health Monitoring
+
+Orion monitors connected field controllers and device nodes.
+
+Tracked states may include:
+
+- online/offline status
+- heartbeat status
+- active sprinkler zone
+- HVAC mode
+- relay feedback
+- sensor status
+- controller health
+- fault state
+- stale data conditions
+
+This helps Orion avoid assuming that hardware is available when a field device is offline.
+
+### Fault Detection
+
+Orion can detect and surface system faults.
+
+Example fault state:
+
+```json
+{
+  "fault": true,
+  "source": "sprinkler",
+  "message": "ESP32 sprinkler node offline",
+  "recommended_action": "Investigate fault before running automation"
+}
+```
+
+When a fault is active, Orion changes the system state and recommendation instead of continuing normal automation blindly.
+
+### Weather-Aware Irrigation
+
+Orion can use weather conditions to influence irrigation behavior.
+
+Example behavior:
+
+```txt
+Rain likely
+Irrigation delayed
+No sprinkler action needed
+```
+
+This helps prevent unnecessary watering and demonstrates state-aware automation logic.
 
 ---
 
@@ -104,17 +407,35 @@ This allows Orion to distribute control logic, telemetry, and hardware state acr
 
 The HVAC controller supports:
 
-* Live temperature and humidity telemetry
-* Auto / cool / heat / off modes
-* Fan auto / on / off modes
-* Compressor protection logic
-* Minimum equipment on/off timers
-* Changeover lockout handling
-* Relay feedback monitoring
-* Active alarm visibility
-* Fault reporting
+- live temperature and humidity telemetry
+- auto / cool / heat / off modes
+- fan auto / on / off modes
+- compressor protection logic
+- minimum equipment on/off timers
+- changeover lockout handling
+- fan post-run handling
+- relay feedback monitoring
+- active alarm visibility
+- fault reporting
+- controller health state
 
 A major reliability improvement separates commanded HVAC state from relay feedback so stale node data cannot incorrectly re-command equipment.
+
+HVAC state may include:
+
+- current temperature
+- humidity
+- mode
+- setpoint
+- cooling state
+- heating state
+- fan state
+- relay feedback
+- DHT sensor health
+- node heartbeat
+- fault state
+
+The HVAC controller can run independently or integrate with Orion for centralized visibility.
 
 ---
 
@@ -122,16 +443,31 @@ A major reliability improvement separates commanded HVAC state from relay feedba
 
 The irrigation controller supports:
 
-* Multi-zone sprinkler scheduling
-* Manual zone control
-* Live irrigation timeline
-* Weather-aware skip logic
-* Schedule synchronization
-* Safe stop commands
-* Raspberry Pi local schedule ownership
-* ESP32 relay-node integration
+- multi-zone sprinkler scheduling
+- manual zone control
+- live irrigation timeline
+- safe stop commands
+- schedule synchronization
+- weather-aware skip logic
+- Raspberry Pi local schedule ownership
+- ESP32 relay-node integration
+
+Orion can sync weekday schedules, start times, zone durations, and next-run timelines to the Raspberry Pi irrigation controller.
 
 The irrigation controller can continue operating independently on the Raspberry Pi even if the central Orion dashboard becomes unavailable.
+
+Sprinkler state may include:
+
+- online/offline state
+- active zone
+- running state
+- schedule status
+- next scheduled run
+- weather delay state
+- manual command state
+- relay feedback
+- node heartbeat
+- fault state
 
 ---
 
@@ -141,12 +477,12 @@ Orion includes fault-aware monitoring for distributed field devices.
 
 The platform can:
 
-* Detect offline devices
-* Surface node-level faults
-* Report relay mismatches
-* Display controller health state
-* Preserve visibility during partial system failures
-* Support safer troubleshooting and recovery
+- detect offline devices
+- surface node-level faults
+- report relay mismatches
+- display controller health state
+- preserve visibility during partial system failures
+- support safer troubleshooting and recovery
 
 The system is designed to fail safely, report problems clearly, and maintain operational visibility instead of silently hiding failures.
 
@@ -158,69 +494,64 @@ Orion includes an AI-assisted monitoring layer capable of evaluating live system
 
 Example behaviors include:
 
-* Delaying irrigation when rain is likely
-* Monitoring system health
-* Explaining current device state
-* Summarizing telemetry
-* Recommending operator actions
+- delaying irrigation when rain is likely
+- monitoring system health
+- explaining current device state
+- summarizing telemetry
+- recommending operator actions
+- inspecting active faults
+- explaining why automation is delayed
 
 Automation can run in manual approval mode or auto-execute mode depending on safety settings.
 
 ---
 
-# Screenshots
+## Reliability Improvements
 
-## AI-Assisted Monitoring
+Recent reliability work included:
 
-![Orion AI Recommendation](docs/screenshots/orion-ai-recommendation.jpg)
-
-Orion evaluates live telemetry, weather conditions, and device state to provide operational recommendations.
-
----
-
-## Live Telemetry Dashboard
-
-![Orion Device Dashboard](docs/screenshots/orion-device-dashboard.jpg)
-
-The dashboard displays live HVAC state, irrigation scheduling, device telemetry, and distributed system health.
+- refactored the project into a cleaner public repository structure
+- fixed real sprinkler schedule synchronization between Orion and the Raspberry Pi controller
+- added safer HVAC state handling so relay feedback cannot incorrectly re-command equipment
+- improved frontend rendering for richer live device data
+- fixed irrigation timeline zone numbering
+- verified live telemetry, hardware state, and schedule execution through the dashboard
+- preserved field-controller independence so local Pi services can continue operating without Orion
 
 ---
 
-## Healthy Distributed System State
-
-![Healthy system state](docs/screenshots/fault-dashboard-healthy.jpeg)
-
-The dashboard displays healthy controller and node communication across the distributed platform.
-
----
-
-## Distributed Fault Detection
-
-![Distributed fault detection](docs/screenshots/fault-dashboard-node-fault.jpeg)
-
-For validation, a thermostat field controller was intentionally powered down to confirm Orion detected the offline device, surfaced the fault condition, and preserved visibility into the remaining system state.
-
----
-
-# Reliability and Safety Design
+## Reliability and Safety Design
 
 Orion is designed around predictable hardware behavior and operational reliability.
 
 Key reliability concepts include:
 
-* Field-controller independence
-* Local controller ownership of hardware logic
-* Distributed architecture
-* Runtime state persistence
-* Fault visibility
-* Compressor lockout protection
-* Minimum equipment on/off timers
-* Fan post-run handling
-* Relay feedback monitoring
-* Manual override capability
-* Safe stop commands
-* Weather-aware irrigation protection
-* Fail-safe controller operation
+- field-controller independence
+- local controller ownership of hardware logic
+- distributed architecture
+- runtime state persistence
+- fault visibility
+- compressor lockout protection
+- minimum equipment on/off timers
+- fan post-run handling
+- relay feedback monitoring
+- manual override capability
+- safe stop commands
+- weather-aware irrigation protection
+- fail-safe controller operation
+
+Important safety goals include:
+
+- do not blindly assume hardware commands succeed
+- expose active faults clearly
+- separate manual and automatic execution
+- avoid running automation when hardware is unavailable
+- detect offline field nodes
+- show last decision and recommendation
+- keep system state visible
+- provide manual override behavior
+- preserve runtime state where useful
+- avoid unsafe automation when device state is unknown
 
 The Raspberry Pi field controllers continue operating locally even if the Jetson application layer becomes unavailable.
 
@@ -228,62 +559,77 @@ This prevents the dashboard or AI orchestration layer from becoming a single poi
 
 ---
 
-# Technology Stack
+## Technology Stack
 
-## Backend
+### Backend
 
-* Python
-* Flask
-* REST APIs
-* MQTT
-* Local AI integration
-* Runtime state management
+- Python
+- Flask
+- REST APIs
+- MQTT
+- local AI integration
+- runtime state management
+- device control routing
+- system metrics collection
+- persistent memory/session storage
+
+### Frontend
+
+- React
+- Next.js
+- TypeScript
+- real-time telemetry polling
+- component-based UI architecture
+- assistant interface
+- saved chat display
+
+### AI / Automation
+
+- local LLM support
+- Ollama integration
+- structured decision output
+- AI-assisted recommendations
+- deterministic safety rules
+- explainable decision reasons
+- automation state loop
+
+### Hardware and Infrastructure
+
+- NVIDIA Jetson
+- Raspberry Pi 4
+- ESP32
+- Linux
+- systemd services
+- MQTT messaging
+- relay-control hardware
+- HVAC equipment integration
+- irrigation hardware integration
+- local network deployment
 
 ---
 
-## Frontend
-
-* React
-* Next.js
-* TypeScript
-* Real-time telemetry polling
-* Component-based UI architecture
-
----
-
-## Hardware and Infrastructure
-
-* NVIDIA Jetson
-* Raspberry Pi 4
-* ESP32
-* Linux
-* systemd services
-* MQTT messaging
-* Relay-control hardware
-* HVAC equipment integration
-* Irrigation hardware integration
----
-# Where Orion V2 Can Grow
+## Where Orion V2 Can Grow
 
 Orion V2 is currently focused on HVAC and irrigation control, but the architecture is designed to expand into a broader edge automation platform.
 
 The same distributed pattern — NVIDIA Jetson application layer, Raspberry Pi field controllers, ESP32 edge nodes, MQTT messaging, real-time telemetry, fault tracking, and AI-assisted operational recommendations — can support additional real-world systems such as:
 
-* Environmental monitoring
-* Lighting control
-* Pump and motor systems
-* Energy management
-* Security and sensor networks
-* Distributed equipment supervision
-* Predictive maintenance workflows
-* Remote edge-device coordination
+- environmental monitoring
+- lighting control
+- pump and motor systems
+- energy management
+- security and sensor networks
+- distributed equipment supervision
+- predictive maintenance workflows
+- remote edge-device coordination
 
 The long-term goal is to evolve Orion into a scalable edge AI and industrial IoT platform capable of monitoring, coordinating, and automating multiple physical systems from a unified operational dashboard.
 
 The platform is intentionally modular so additional field controllers, edge nodes, telemetry pipelines, and automation services can be integrated without redesigning the overall system architecture.
+
 ---
 
-# Repository Structure
+## Repository Structure
 
 ```txt
 server/
@@ -307,14 +653,205 @@ scripts/
 
 ---
 
-# Running Locally
+## Backend API Examples
 
-## Backend
+Orion exposes API routes for system status, sessions, chat, and device control.
+
+Example system endpoint:
+
+```txt
+GET /v1/system
+```
+
+Example chat/session endpoints:
+
+```txt
+GET  /v1/sessions
+GET  /v1/session/{id}
+POST /v1/chat/stream
+```
+
+Example control endpoints:
+
+```txt
+GET  /v1/control/help
+POST /v1/control/command
+POST /v1/control/sprinkler/zone
+POST /v1/control/sprinkler/stop
+POST /v1/control/sprinkler/program-now
+POST /v1/control/thermostat/setpoint
+POST /v1/control/thermostat/mode
+POST /v1/control/thermostat/fan
+```
+
+These endpoints allow the dashboard, assistant, and automation logic to interact with real device controllers.
+
+---
+
+## Example System Status Payload
+
+```json
+{
+  "ai": "active",
+  "fault": false,
+  "cpu": 3.4,
+  "memory": 16.5,
+  "gpu": 0.0,
+  "last_decision": {
+    "action": "observe",
+    "reason": "System stable"
+  },
+  "sprinkler": {
+    "online": true,
+    "running": false,
+    "active_zone": null
+  },
+  "hvac": {
+    "online": true,
+    "mode": "cool",
+    "current_temp": 76.6,
+    "setpoint": 72
+  }
+}
+```
+
+---
+
+## Example Fault Payload
+
+```json
+{
+  "ai": "active",
+  "fault": true,
+  "automation_state": "Fault",
+  "last_decision": {
+    "action": "recover",
+    "reason": "System fault detected"
+  },
+  "recommendation": {
+    "title": "Investigate fault",
+    "reason": "ESP32 sprinkler node offline. Review logs before running automation."
+  }
+}
+```
+
+---
+
+## Example AI Decision Payload
+
+```json
+{
+  "action": "delay_irrigation",
+  "reason": "Rain likelihood is high. Skip or delay the next irrigation run.",
+  "params": {
+    "rain_likelihood": 100
+  },
+  "execution": "monitor_only",
+  "safety": "no_hardware_action_needed"
+}
+```
+
+---
+
+## Local LLM Integration
+
+Orion can integrate with a local LLM through Ollama.
+
+Example local model setup:
+
+```txt
+Ollama endpoint: http://127.0.0.1:11434
+Default model: mistral
+Code model: deepseek-coder:6.7b
+```
+
+The LLM is used for assisted reasoning and explanations while deterministic safety logic remains responsible for preventing unsafe control behavior.
+
+Example use cases:
+
+- explain current system state
+- summarize device faults
+- recommend whether to delay irrigation
+- classify system state
+- produce structured automation decisions
+- answer questions through the dashboard assistant
+
+---
+
+## Automation Loop
+
+Orion can run a background automation loop.
+
+Typical loop behavior:
+
+```txt
+Read system state
+        ↓
+Read device telemetry
+        ↓
+Check weather / hardware status
+        ↓
+Apply deterministic safety checks
+        ↓
+Ask AI assistant for recommendation
+        ↓
+Parse structured decision
+        ↓
+Update dashboard state
+        ↓
+Optionally execute safe action
+```
+
+The automation loop is designed to keep the dashboard updated while preventing unsafe hardware actions.
+
+---
+
+## Manual Control Examples
+
+Example natural command:
+
+```txt
+run sprinkler zone 3 for 2 minutes
+```
+
+Example thermostat command:
+
+```txt
+set thermostat to 72
+```
+
+Example assistant prompt:
+
+```txt
+Why is irrigation delayed?
+```
+
+Example system health prompt:
+
+```txt
+Check home system health
+```
+
+---
+
+## Running Locally
+
+### Backend
 
 ```bash
 cd server/backend
 python -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+On Windows PowerShell:
+
+```powershell
+cd server/backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python app.py
 ```
@@ -325,9 +862,7 @@ Backend:
 http://127.0.0.1:5001
 ```
 
----
-
-## Frontend
+### Frontend
 
 ```bash
 cd server/frontend
@@ -343,7 +878,22 @@ http://localhost:3000
 
 ---
 
-# Field Controllers
+## Environment Variables
+
+Example environment variables:
+
+```txt
+ORION_BACKEND_URL=http://localhost:5000
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=mistral
+WEATHER_LOCATION=Brandon,FL
+```
+
+Actual variables may vary depending on deployment.
+
+---
+
+## Field Controllers
 
 The field controllers are designed to run independently on Raspberry Pi hardware using systemd-managed services.
 
@@ -356,53 +906,250 @@ field-controller/irrigation-controller/
 
 Each field controller owns:
 
-* Local runtime state
-* Hardware-facing logic
-* Scheduling
-* Safety protections
-* MQTT communication
-* Relay coordination
-* Fault reporting
-* Fail-safe behavior
+- local runtime state
+- hardware-facing logic
+- scheduling
+- safety protections
+- MQTT communication
+- relay coordination
+- fault reporting
+- fail-safe behavior
 
 This architecture keeps hardware execution close to the equipment while Orion provides centralized monitoring and operational visibility.
 
 ---
 
-# What This Project Demonstrates
+## Field Controller Repositories
 
-Orion V2 demonstrates practical engineering experience across:
+Orion V2 is supported by separate field-controller repositories.
 
-* Full-stack software development
-* Embedded systems integration
-* Distributed systems communication
-* REST API design
-* Real-time telemetry pipelines
-* Operational monitoring
-* Hardware relay control
-* MQTT messaging
-* Edge-device deployment
-* Raspberry Pi services
-* ESP32 firmware integration
-* HVAC automation
-* Irrigation automation
-* Fault detection and troubleshooting
-* Reliability-focused system design
-* AI-assisted operational tooling
+### HVAC Field Controller
+
+```txt
+Orion V2 — Raspberry Pi ESP32 HVAC Controller
+```
+
+This controller handles local HVAC dashboard control, MQTT communication, ESP32 relay-node integration, DHT telemetry, safety timing, relay feedback, and fault detection.
+
+### Sprinkler Field Controller
+
+```txt
+Orion V2 — Raspberry Pi ESP32 Sprinkler Controller
+```
+
+This controller handles local sprinkler scheduling, manual zone control, persistent schedules, runtime state tracking, ESP32 relay-node integration, MQTT communication, and safety-aware irrigation control.
 
 ---
 
-# Project Status
+## Deployment Notes
 
-Orion V2 is an actively developed distributed edge automation platform focused on:
+Orion can run on several types of hardware depending on the deployment goal.
 
-* Real-world hardware integration
-* Operational reliability
-* Distributed telemetry
-* Embedded systems communication
-* Edge-device deployment
-* Modular architecture
-* Fault-aware monitoring
-* AI-assisted operational workflows
+Example deployment options:
 
-The project is currently maintained as a portfolio platform demonstrating full-stack, embedded, IoT, and control-system engineering.
+- Windows PC for development
+- NVIDIA Jetson for the main edge application server
+- Raspberry Pi for field-controller services
+- ESP32 nodes for relay control
+- local network with MQTT broker
+- systemd services for long-running controller processes
+
+The architecture is intentionally distributed so device control can remain close to the hardware while the dashboard and AI supervisor provide higher-level visibility.
+
+---
+
+## Jetson / Edge Deployment
+
+Orion can be deployed on an edge compute device such as an NVIDIA Jetson.
+
+Benefits of edge deployment include:
+
+- local AI capability
+- lower dependency on cloud services
+- compact dedicated hardware
+- always-on dashboard/backend host
+- stronger edge-compute deployment model
+
+Example edge deployment role:
+
+```txt
+Jetson / edge server
+        ↓
+Runs Orion backend
+Runs Orion frontend
+Runs local LLM support
+Monitors Raspberry Pi field controllers
+Receives MQTT/device telemetry
+Displays dashboard and AI recommendations
+```
+
+---
+
+## Project Relevance
+
+Orion V2 demonstrates the ability to build a complete connected system across multiple layers:
+
+- frontend dashboard
+- backend API
+- AI-assisted automation
+- Raspberry Pi field controllers
+- ESP32 hardware nodes
+- MQTT communication
+- device telemetry
+- relay control
+- persistent state
+- fault handling
+- safety-aware decision logic
+- local edge deployment
+
+This makes the project relevant to full-stack development, IoT engineering, embedded systems, automation, edge AI, backend API development, and control-system integration.
+
+---
+
+## Reliability Goals
+
+Planned and current reliability goals include:
+
+- persistent state recovery
+- controller health monitoring
+- heartbeat checks
+- stale telemetry detection
+- field-node offline detection
+- relay feedback validation
+- fault history
+- automatic recovery attempts
+- systemd service recovery
+- safe manual override
+- deterministic safety checks before execution
+
+---
+
+## Current Status
+
+Working features:
+
+- Orion dashboard
+- backend API
+- assistant interface
+- saved chat/session support
+- live system metrics
+- AI-assisted recommendation display
+- manual and automatic execution mode display
+- HVAC integration support
+- sprinkler integration support
+- weather-aware irrigation logic
+- fault state display
+- Raspberry Pi field-controller integration
+- ESP32 node integration support
+- local LLM support
+- Jetson deployment support
+
+In progress / planned:
+
+- stronger automated recovery behavior
+- more detailed event history
+- expanded MQTT topic documentation
+- improved controller reconciliation
+- more polished deployment scripts
+- better fault timeline visualization
+- additional screenshots and demo clips
+- improved documentation for public review
+
+---
+
+## Future Improvements
+
+Planned improvements include:
+
+- persistent event log viewer
+- fault history timeline
+- improved AI decision audit trail
+- command acknowledgment tracking
+- controller heartbeat dashboard
+- automated recovery workflows
+- stronger weather integration
+- mobile dashboard polish
+- Docker deployment option
+- improved setup documentation
+- test coverage for backend routes
+- hardware simulation mode
+- public demo video
+- clearer architecture diagrams
+
+---
+
+## Project Story
+
+Orion V2 started as a practical home automation project and grew into a distributed edge automation platform.
+
+The system connects real HVAC and irrigation hardware to a central dashboard, adds field-controller separation, integrates ESP32 relay nodes, and layers AI-assisted recommendations on top of deterministic safety logic.
+
+The project demonstrates practical engineering across software, hardware, networking, automation, and system design.
+
+---
+
+## Related Repositories
+
+Recommended GitHub project structure:
+
+```txt
+orion-v2
+Main platform, dashboard, backend API, AI supervisor
+
+raspberry-pi-esp32-hvac-controller
+HVAC field-controller layer
+
+raspberry-pi-esp32-sprinkler-controller
+Irrigation field-controller layer
+```
+
+Together, these repositories show the full distributed system:
+
+```txt
+Main Orion platform
+        ↓
+HVAC field controller
+        ↓
+Sprinkler field controller
+        ↓
+ESP32 hardware nodes
+        ↓
+Real equipment
+```
+
+---
+
+## Safety Notes
+
+This project interacts with real electrical, HVAC, and irrigation hardware.
+
+Important safety considerations:
+
+- understand wiring before connecting relays
+- use proper relay isolation
+- verify voltage levels
+- avoid unsafe HVAC short-cycling
+- provide manual shutoff methods
+- test with disconnected loads first
+- do not rely only on software for emergency shutoff
+- follow safe electrical practices
+- use at your own risk
+
+Orion is an educational engineering project, not a certified commercial control system.
+
+---
+
+## License
+
+This project is provided as an educational engineering project.
+
+Use at your own risk when controlling real hardware.
+
+---
+
+## Author
+
+David Echols  
+GitHub: Echo13091
+
+Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Raspberry Pi field controllers, ESP32 hardware nodes, and real home automation equipment.
