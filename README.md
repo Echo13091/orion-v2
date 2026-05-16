@@ -1,38 +1,45 @@
 # Orion V2 — Distributed Edge Automation Platform
 
-Orion V2 is a distributed edge automation platform that combines full-stack software, embedded systems, real-time telemetry, and AI-assisted operational monitoring into a unified control system for real HVAC and irrigation hardware.
+Orion V2 is a distributed edge automation platform for real HVAC and irrigation hardware.
 
-The platform runs on NVIDIA Jetson edge hardware and communicates with Raspberry Pi field controllers and ESP32 edge nodes using MQTT-based distributed messaging.
+The system runs on NVIDIA Jetson edge hardware and uses Docker Compose to orchestrate the main application services:
 
-Unlike a simulated dashboard project, Orion monitors and controls physical hardware in real time.
+- Next.js dashboard
+- Flask backend API
+- Mosquitto MQTT broker
+- AI-assisted monitoring and control loop
 
-The goal of Orion is not just to control devices. The goal is to build a practical distributed control platform that can observe hardware state, reason about system conditions, detect faults, recommend safe actions, and provide a clean dashboard for real-world automation.
+Orion communicates with Raspberry Pi field controllers and ESP32 edge nodes using MQTT-based distributed messaging. The system monitors live thermostat data, relay states, controller heartbeats, weather conditions, fault states, and AI-assisted operational recommendations.
+
+Unlike a simulated dashboard project, Orion interacts with physical hardware in real time.
+
+The goal of Orion is to build a practical local-first control platform that can observe hardware state, detect faults, recommend safe actions, and provide a clean operational dashboard for real-world automation.
 
 ---
 
 ## Quick Overview
 
-Orion V2 is a distributed automation system built around real HVAC and irrigation hardware.
+Orion V2 combines full-stack software, embedded systems, real-time telemetry, Dockerized deployment, and AI-assisted operational monitoring into one distributed control platform.
 
-It includes:
+Current capabilities include:
 
-- central Orion dashboard
-- backend API layer
-- local AI-assisted automation logic
-- live system telemetry
-- HVAC control integration
-- sprinkler / irrigation control integration
-- Raspberry Pi field controllers
-- ESP32 relay nodes
-- MQTT and HTTP communication
+- Docker Compose deployment on NVIDIA Jetson
+- Next.js operational dashboard
+- Flask backend API
+- Mosquitto MQTT broker
+- local AI-assisted monitoring loop
+- HVAC controller integration
+- sprinkler / irrigation controller integration
+- Raspberry Pi field-controller layer
+- ESP32 relay-node layer
+- live telemetry and heartbeat monitoring
 - weather-aware irrigation decisions
-- fault detection and recovery states
-- manual and automatic execution modes
-- persistent system state
-- NVIDIA Jetson edge deployment
-- architecture and deployment documentation
+- fault detection and recovery visibility
+- manual, automatic, and autonomous monitoring modes
+- persistent runtime state
+- real hardware control
 
-Orion is designed as a practical full-stack, embedded, IoT, and automation system built around real hardware.
+Orion is designed as a practical full-stack, embedded, IoT, and edge automation system built around real hardware.
 
 ---
 
@@ -47,11 +54,14 @@ Orion V2 demonstrates:
 - Raspberry Pi field-controller integration
 - ESP32 embedded firmware integration
 - HVAC and irrigation automation
+- Dockerized edge deployment
+- container orchestration with Docker Compose
 - fault detection and operational visibility
 - AI-assisted operational recommendations
 - NVIDIA Jetson edge deployment
 - safety-focused control logic and fail-safe behavior
 - system reliability and debugging
+- hardware/software integration
 
 ---
 
@@ -86,35 +96,94 @@ For validation, a thermostat field controller was intentionally powered down to 
 ## System Architecture
 
 ```txt
-┌──────────────────────────────────────────────┐
-│              NVIDIA Jetson                   │
-│   React Dashboard + Flask API + AI Layer     │
-└──────────────────────┬───────────────────────┘
-                       │
-                REST / MQTT
-                       │
-┌──────────────────────▼───────────────────────┐
-│       Raspberry Pi Field Controllers         │
-│    HVAC Service + Irrigation Service         │
-└──────────────────────┬───────────────────────┘
-                       │
-                     MQTT
-                       │
-┌──────────────────────▼───────────────────────┐
-│               ESP32 Edge Nodes               │
-│      Relays + Sensors + Heartbeats           │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                  NVIDIA Jetson Edge Server               │
+│                                                          │
+│  Docker Compose                                          │
+│  ├── Next.js Dashboard                                   │
+│  ├── Flask Backend API                                   │
+│  ├── Mosquitto MQTT Broker                               │
+│  └── AI-Assisted Monitoring / Control Loop               │
+└───────────────────────────┬──────────────────────────────┘
+                            │
+                       REST / MQTT
+                            │
+┌───────────────────────────▼──────────────────────────────┐
+│              Raspberry Pi Field Controllers              │
+│        HVAC Service + Irrigation Service                 │
+│        Local Runtime State + Safety Logic                │
+└───────────────────────────┬──────────────────────────────┘
+                            │
+                           MQTT
+                            │
+┌───────────────────────────▼──────────────────────────────┐
+│                    ESP32 Edge Nodes                      │
+│          Relays + Sensors + Heartbeats + Feedback        │
+└───────────────────────────┬──────────────────────────────┘
+                            │
+┌───────────────────────────▼──────────────────────────────┐
+│                    Real Equipment                        │
+│              HVAC Hardware + Irrigation Hardware         │
+└──────────────────────────────────────────────────────────┘
 ```
 
-Orion separates high-level automation logic from field-level hardware control.
+Orion separates high-level monitoring and orchestration from field-level hardware control.
 
-The Orion dashboard and backend supervise the system. Raspberry Pi field controllers handle local device logic. ESP32 nodes handle relay-level control, telemetry, heartbeat publishing, and failsafe behavior.
+The Jetson hosts the containerized application platform. Raspberry Pi field controllers manage local device behavior and safety logic. ESP32 nodes handle relay-level control, telemetry, heartbeat publishing, and failsafe behavior.
+
+---
+
+## Dockerized Edge Deployment
+
+Orion V2 can run as a Docker Compose stack on NVIDIA Jetson hardware.
+
+Current containerized services:
+
+```txt
+orion-frontend   Next.js dashboard
+orion-backend    Flask API + AI monitoring loop
+orion-mqtt       Mosquitto MQTT broker
+```
+
+Example startup:
+
+```bash
+docker compose up -d
+```
+
+Example status check:
+
+```bash
+docker ps
+```
+
+Expected exposed services:
+
+```txt
+Frontend: http://<JETSON-IP>:3001
+Backend:  http://<JETSON-IP>:5001
+MQTT:     <JETSON-IP>:1883
+```
+
+Useful Docker commands:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs -f
+docker compose restart
+docker compose down
+```
+
+This deployment separates the main Orion platform services from the field-controller layer. The Jetson runs the dashboard, backend, AI monitoring loop, and MQTT broker, while Raspberry Pi controllers and ESP32 nodes continue handling hardware-facing logic close to the equipment.
+
+This makes Orion easier to restart, reproduce, deploy, and document compared to running each service manually.
 
 ---
 
 ## Engineering Summary
 
-Orion V2 demonstrates the ability to design and build a complete distributed automation platform that combines frontend development, backend APIs, embedded systems, hardware control, AI-assisted decision logic, and real-world fault handling.
+Orion V2 demonstrates the ability to design and build a complete distributed automation platform that combines frontend development, backend APIs, embedded systems, hardware control, AI-assisted decision logic, Dockerized deployment, and real-world fault handling.
 
 This project goes beyond a normal dashboard demo. Orion monitors real hardware, tracks live device state, uses AI-assisted recommendations, detects offline nodes, handles weather-aware irrigation decisions, and separates manual control from automatic execution.
 
@@ -138,6 +207,7 @@ Key engineering areas:
 - safety-aware automation
 - distributed IoT system design
 - Linux deployment
+- Docker Compose deployment
 - systemd service patterns
 - edge automation architecture
 
@@ -172,7 +242,8 @@ Orion V2 is different because it combines:
 - system health monitoring
 - field-controller separation
 - persistent state
-- local-first edge deployment
+- Dockerized edge deployment
+- local-first architecture
 
 The result is closer to a small distributed control platform than a basic home automation script.
 
@@ -186,8 +257,10 @@ The NVIDIA Jetson hosts the main Orion platform.
 
 It includes:
 
+- Docker Compose deployment
 - React / Next.js dashboard
 - Python Flask backend
+- Mosquitto MQTT broker
 - REST API endpoints
 - AI orchestration layer
 - session and memory handling
@@ -209,6 +282,7 @@ The backend is responsible for:
 - tracking system health
 - coordinating HVAC and sprinkler integrations
 - reporting faults to the dashboard
+- running the background monitoring loop
 
 ### Orion Frontend
 
@@ -223,6 +297,19 @@ The frontend is responsible for:
 - displaying saved chat sessions
 - exposing the assistant interface
 - making the system understandable to the user
+
+### MQTT Broker
+
+The MQTT broker handles distributed messaging between the Jetson application server, Raspberry Pi field controllers, and ESP32 edge nodes.
+
+MQTT is used for:
+
+- telemetry publishing
+- heartbeat status
+- relay state reporting
+- fault messages
+- controller state updates
+- distributed system visibility
 
 ### Raspberry Pi Field Controllers
 
@@ -325,7 +412,7 @@ This allows Orion to distribute control logic, telemetry, and hardware state acr
 
 ### AI-Assisted Recommendations
 
-Orion can evaluate live system state and produce a recommendation.
+Orion can evaluate live system state and produce operational recommendations.
 
 Example recommendation:
 
@@ -336,6 +423,8 @@ Example recommendation:
   "confidence": "high"
 }
 ```
+
+The AI layer is not just a chat interface. It can inspect system state, recommend actions, and route approved changes through the control layer instead of directly bypassing safety logic.
 
 The AI recommendation layer is designed to assist automation decisions, not blindly replace deterministic safety logic.
 
@@ -501,6 +590,7 @@ Example behaviors include:
 - recommending operator actions
 - inspecting active faults
 - explaining why automation is delayed
+- routing approved changes through the control layer
 
 Automation can run in manual approval mode or auto-execute mode depending on safety settings.
 
@@ -510,6 +600,8 @@ Automation can run in manual approval mode or auto-execute mode depending on saf
 
 Recent reliability work included:
 
+- Docker Compose deployment support for the main Orion platform
+- containerized frontend, backend, and MQTT broker
 - refactored the project into a cleaner public repository structure
 - fixed real sprinkler schedule synchronization between Orion and the Raspberry Pi controller
 - added safer HVAC state handling so relay feedback cannot incorrectly re-command equipment
@@ -530,6 +622,7 @@ Key reliability concepts include:
 - local controller ownership of hardware logic
 - distributed architecture
 - runtime state persistence
+- Dockerized application services
 - fault visibility
 - compressor lockout protection
 - minimum equipment on/off timers
@@ -599,33 +692,22 @@ This prevents the dashboard or AI orchestration layer from becoming a single poi
 - Raspberry Pi 4
 - ESP32
 - Linux
-- systemd services
 - MQTT messaging
 - relay-control hardware
 - HVAC equipment integration
 - irrigation hardware integration
 - local network deployment
 
----
+### Deployment / Infrastructure
 
-## Where Orion V2 Can Grow
-
-Orion V2 is currently focused on HVAC and irrigation control, but the architecture is designed to expand into a broader edge automation platform.
-
-The same distributed pattern — NVIDIA Jetson application layer, Raspberry Pi field controllers, ESP32 edge nodes, MQTT messaging, real-time telemetry, fault tracking, and AI-assisted operational recommendations — can support additional real-world systems such as:
-
-- environmental monitoring
-- lighting control
-- pump and motor systems
-- energy management
-- security and sensor networks
-- distributed equipment supervision
-- predictive maintenance workflows
-- remote edge-device coordination
-
-The long-term goal is to evolve Orion into a scalable edge AI and industrial IoT platform capable of monitoring, coordinating, and automating multiple physical systems from a unified operational dashboard.
-
-The platform is intentionally modular so additional field controllers, edge nodes, telemetry pipelines, and automation services can be integrated without redesigning the overall system architecture.
+- Docker
+- Docker Compose
+- NVIDIA Jetson edge deployment
+- Mosquitto MQTT broker
+- Linux networking
+- containerized backend/frontend services
+- systemd-managed field-controller services
+- local network deployment
 
 ---
 
@@ -649,6 +731,7 @@ docs/
 
 examples/
 scripts/
+docker-compose.yml
 ```
 
 ---
@@ -799,7 +882,7 @@ Parse structured decision
         ↓
 Update dashboard state
         ↓
-Optionally execute safe action
+Optionally execute approved safe action
 ```
 
 The automation loop is designed to keep the dashboard updated while preventing unsafe hardware actions.
@@ -878,18 +961,67 @@ http://localhost:3000
 
 ---
 
+## Docker Compose Deployment
+
+The main Orion platform can run on NVIDIA Jetson hardware using Docker Compose.
+
+From the project root:
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+Check running services:
+
+```bash
+docker ps
+```
+
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+Restart services:
+
+```bash
+docker compose restart
+```
+
+Stop services:
+
+```bash
+docker compose down
+```
+
+Default local deployment ports:
+
+```txt
+Frontend: http://<JETSON-IP>:3001
+Backend:  http://<JETSON-IP>:5001
+MQTT:     <JETSON-IP>:1883
+```
+
+The Docker deployment is intended for the main Jetson-hosted platform services. Raspberry Pi field controllers and ESP32 nodes remain hardware-facing components that communicate with the main platform over the local network.
+
+---
+
 ## Environment Variables
 
 Example environment variables:
 
 ```txt
-ORION_BACKEND_URL=http://localhost:5000
+ORION_BACKEND_URL=http://localhost:5001
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=mistral
 WEATHER_LOCATION=Brandon,FL
+MQTT_HOST=localhost
+MQTT_PORT=1883
 ```
 
-Actual variables may vary depending on deployment.
+Actual variables may vary depending on local, Docker, Jetson, or field-controller deployment.
 
 ---
 
@@ -943,7 +1075,24 @@ This controller handles local sprinkler scheduling, manual zone control, persist
 
 ## Deployment Notes
 
-Orion can run on several types of hardware depending on the deployment goal.
+Orion supports both development and edge deployment workflows.
+
+### Jetson Application Deployment
+
+The main Orion platform can run on NVIDIA Jetson hardware using Docker Compose.
+
+Containerized services include:
+
+- frontend dashboard
+- backend API
+- MQTT broker
+- AI-assisted monitoring loop
+
+### Field Controller Deployment
+
+The Raspberry Pi field controllers are designed to run independently using systemd-managed services.
+
+This keeps hardware-facing logic close to the equipment while the Jetson provides centralized monitoring, AI-assisted recommendations, and dashboard visibility.
 
 Example deployment options:
 
@@ -968,6 +1117,7 @@ Benefits of edge deployment include:
 - lower dependency on cloud services
 - compact dedicated hardware
 - always-on dashboard/backend host
+- containerized service deployment
 - stronger edge-compute deployment model
 
 Example edge deployment role:
@@ -975,9 +1125,11 @@ Example edge deployment role:
 ```txt
 Jetson / edge server
         ↓
+Runs Docker Compose stack
 Runs Orion backend
 Runs Orion frontend
-Runs local LLM support
+Runs Mosquitto MQTT broker
+Runs AI-assisted monitoring loop
 Monitors Raspberry Pi field controllers
 Receives MQTT/device telemetry
 Displays dashboard and AI recommendations
@@ -995,6 +1147,7 @@ Orion V2 demonstrates the ability to build a complete connected system across mu
 - Raspberry Pi field controllers
 - ESP32 hardware nodes
 - MQTT communication
+- Docker Compose deployment
 - device telemetry
 - relay control
 - persistent state
@@ -1018,7 +1171,7 @@ Planned and current reliability goals include:
 - relay feedback validation
 - fault history
 - automatic recovery attempts
-- systemd service recovery
+- systemd service recovery for field controllers
 - safe manual override
 - deterministic safety checks before execution
 
@@ -1028,6 +1181,8 @@ Planned and current reliability goals include:
 
 Working features:
 
+- Docker Compose deployment on NVIDIA Jetson
+- containerized frontend, backend, and MQTT broker
 - Orion dashboard
 - backend API
 - assistant interface
@@ -1035,6 +1190,7 @@ Working features:
 - live system metrics
 - AI-assisted recommendation display
 - manual and automatic execution mode display
+- autonomous monitoring state
 - HVAC integration support
 - sprinkler integration support
 - weather-aware irrigation logic
@@ -1042,7 +1198,8 @@ Working features:
 - Raspberry Pi field-controller integration
 - ESP32 node integration support
 - local LLM support
-- Jetson deployment support
+- Jetson edge deployment support
+- distributed MQTT messaging
 
 In progress / planned:
 
@@ -1050,10 +1207,14 @@ In progress / planned:
 - more detailed event history
 - expanded MQTT topic documentation
 - improved controller reconciliation
-- more polished deployment scripts
-- better fault timeline visualization
+- persistent Docker volumes
+- MQTT authentication
+- better deployment documentation
+- fault recovery demo clips
+- improved fault timeline visualization
 - additional screenshots and demo clips
-- improved documentation for public review
+- architecture diagrams
+- hardware simulation mode
 
 ---
 
@@ -1069,12 +1230,37 @@ Planned improvements include:
 - automated recovery workflows
 - stronger weather integration
 - mobile dashboard polish
-- Docker deployment option
+- production Docker hardening
+- persistent Docker volumes
+- MQTT authentication
+- nginx reverse proxy
+- dashboard authentication
 - improved setup documentation
 - test coverage for backend routes
 - hardware simulation mode
 - public demo video
 - clearer architecture diagrams
+
+---
+
+## Where Orion V2 Can Grow
+
+Orion V2 is currently focused on HVAC and irrigation control, but the architecture is designed to expand into a broader edge automation platform.
+
+The same distributed pattern — NVIDIA Jetson application layer, Raspberry Pi field controllers, ESP32 edge nodes, MQTT messaging, real-time telemetry, fault tracking, and AI-assisted operational recommendations — can support additional real-world systems such as:
+
+- environmental monitoring
+- lighting control
+- pump and motor systems
+- energy management
+- security and sensor networks
+- distributed equipment supervision
+- predictive maintenance workflows
+- remote edge-device coordination
+
+The long-term goal is to evolve Orion into a scalable edge AI and industrial IoT platform capable of monitoring, coordinating, and automating multiple physical systems from a unified operational dashboard.
+
+The platform is intentionally modular so additional field controllers, edge nodes, telemetry pipelines, and automation services can be integrated without redesigning the overall system architecture.
 
 ---
 
@@ -1119,6 +1305,24 @@ Real equipment
 
 ---
 
+## Security Notes
+
+The current deployment is intended for local network / development use.
+
+Important security considerations before exposing Orion outside a private LAN:
+
+- do not expose MQTT publicly without authentication
+- do not port-forward the dashboard or backend without access control
+- add dashboard authentication before remote access
+- add MQTT username/password and ACLs
+- use HTTPS / reverse proxy for external access
+- keep hardware control endpoints protected
+- avoid running on public Wi-Fi without additional security hardening
+
+Orion is currently designed as a local-first edge automation system.
+
+---
+
 ## Safety Notes
 
 This project interacts with real electrical, HVAC, and irrigation hardware.
@@ -1152,4 +1356,4 @@ Use at your own risk when controlling real hardware.
 David Echols  
 GitHub: Echo13091
 
-Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Raspberry Pi field controllers, ESP32 hardware nodes, and real home automation equipment.
+Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Docker Compose deployment, Raspberry Pi field controllers, ESP32 hardware nodes, and real home automation equipment.
