@@ -45,6 +45,12 @@ sprinkler_schedule.json
 server/backend/sprinkler_schedule.json
 
 # =========================
+# Docker runtime persistence
+# =========================
+server/backend/logs/
+server/backend/memory/*.json
+
+# =========================
 # IDE
 # =========================
 .vscode/
