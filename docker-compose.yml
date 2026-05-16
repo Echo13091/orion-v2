@@ -1,0 +1,23 @@
+services:
+  backend:
+    build: ./server/backend
+    container_name: orion-backend
+    ports:
+      - "5001:5001"
+    restart: unless-stopped
+
+  frontend:
+    build: ./server/frontend
+    container_name: orion-frontend
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  mqtt:
+    image: eclipse-mosquitto
+    container_name: orion-mqtt
+    ports:
+      - "1883:1883"
+    restart: unless-stopped
