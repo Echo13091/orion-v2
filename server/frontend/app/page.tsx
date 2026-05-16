@@ -76,7 +76,6 @@ type WeatherState = {
   error?: string | null;
 };
 
-
 type IrrigationSchedule = {
   enabled?: boolean;
   days?: string[];
@@ -157,7 +156,6 @@ function formatJson(value: unknown, fallback = "No data") {
   }
 }
 
-
 function formatMetricValue(value: unknown): ReactNode {
   if (value === null || value === undefined || value === "") {
     return "—";
@@ -197,18 +195,9 @@ function yesNo(value?: boolean) {
   return value ? "Yes" : "No";
 }
 
-function onOff(value?: boolean) {
-  if (value === undefined) return "--";
-  return value ? "On" : "Off";
-}
-
 function onlineState(value?: boolean): "good" | "bad" | "neutral" {
   if (value === undefined) return "neutral";
   return value ? "good" : "bad";
-}
-
-function activeState(value?: boolean): "good" | "neutral" {
-  return value ? "good" : "neutral";
 }
 
 function formatTemp(value?: number | null) {
@@ -239,9 +228,10 @@ function formatScheduleSummary(schedule?: IrrigationSchedule | null): string {
   const minutes = Number.isFinite(schedule.duration_minutes)
     ? `${Number(schedule.duration_minutes)} min`
     : "--";
-  const zones = Array.isArray(schedule.zones) && schedule.zones.length > 0
-    ? `Z${schedule.zones.join(",")}`
-    : "All zones";
+  const zones =
+    Array.isArray(schedule.zones) && schedule.zones.length > 0
+      ? `Z${schedule.zones.join(",")}`
+      : "All zones";
 
   if (schedule.skip_next_run) return `Skip next · ${time}`;
   return `${time} · ${minutes} · ${zones}`;
@@ -249,8 +239,12 @@ function formatScheduleSummary(schedule?: IrrigationSchedule | null): string {
 
 function formatScheduleController(schedule?: IrrigationSchedule | null) {
   if (!schedule) return "--";
-  if (schedule.controller === "sprinkler" || schedule.hardware_synced) return "Sprinkler controlled";
-  if (schedule.controller === "orion" || schedule.hardware_sync_required === false) return "Orion controlled";
+  if (schedule.controller === "sprinkler" || schedule.hardware_synced) {
+    return "Sprinkler controlled";
+  }
+  if (schedule.controller === "orion" || schedule.hardware_sync_required === false) {
+    return "Orion controlled";
+  }
   return "Hardware controlled";
 }
 
@@ -268,7 +262,10 @@ function formatMode(value?: string | null) {
 function formatAutomationState(value?: string | null) {
   const formatted = formatMode(value);
 
-  if (formatted === "Idle" || formatted === "Monitoring") return "Autonomous Monitoring";
+  if (formatted === "Idle" || formatted === "Monitoring") {
+    return "Autonomous Monitoring";
+  }
+
   if (formatted === "--") return "Waiting";
 
   return formatted;
@@ -316,6 +313,11 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+function coerceNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function getExecutionSummary(system?: SystemState | null): {
   status: string;
   action: string;
@@ -341,7 +343,9 @@ function getExecutionSummary(system?: SystemState | null): {
     optionalString(result?.reason) ||
     optionalString(nestedResult?.message) ||
     optionalString(nestedResult?.action) ||
-    (decision?.requires_execution ? "Awaiting safe execution" : "No hardware action needed");
+    (decision?.requires_execution
+      ? "Awaiting safe execution"
+      : "No hardware action needed");
 
   if (status === "already_applied") {
     return {
@@ -405,7 +409,6 @@ function getExecutionSummary(system?: SystemState | null): {
   };
 }
 
-
 function getHvacOverview(system?: SystemState | null) {
   const raw = isRecord(system?.thermostat?.raw)
     ? (system?.thermostat?.raw as Record<string, unknown>)
@@ -413,14 +416,35 @@ function getHvacOverview(system?: SystemState | null) {
 
   const cooling = Boolean(system?.thermostat?.cooling || raw?.cooling);
   const heating = Boolean(system?.thermostat?.heating || raw?.heating);
-  const fan = Boolean(system?.thermostat?.fan || raw?.fan || raw?.fan_on || raw?.fan_active);
-  const online = system?.thermostat?.online !== false && raw?.online !== false && raw?.node_online !== false;
+  const fan = Boolean(
+    system?.thermostat?.fan || raw?.fan || raw?.fan_on || raw?.fan_active,
+  );
+  const online =
+    system?.thermostat?.online !== false &&
+    raw?.online !== false &&
+    raw?.node_online !== false;
   const fault = Boolean(system?.fault || raw?.fault);
 
-  const coolStage = coerceNumber(raw?.cool_stage ?? raw?.node_cool_stage, cooling ? 1 : 0);
-  const heatStage = coerceNumber(raw?.heat_stage ?? raw?.node_heat_stage, heating ? 1 : 0);
-  const heartbeatAge = coerceNumber(raw?.last_heartbeat_msg_age ?? raw?.last_node_msg_age ?? raw?.last_sensor_msg_age, -1);
-  const sensorStatus = formatMode(optionalString(raw?.sensor_status) || optionalString(raw?.dht_raw_status) || optionalString(raw?.dht_status) || "unknown");
+  const coolStage = coerceNumber(
+    raw?.cool_stage ?? raw?.node_cool_stage,
+    cooling ? 1 : 0,
+  );
+  const heatStage = coerceNumber(
+    raw?.heat_stage ?? raw?.node_heat_stage,
+    heating ? 1 : 0,
+  );
+  const heartbeatAge = coerceNumber(
+    raw?.last_heartbeat_msg_age ??
+      raw?.last_node_msg_age ??
+      raw?.last_sensor_msg_age,
+    -1,
+  );
+  const sensorStatus = formatMode(
+    optionalString(raw?.sensor_status) ||
+      optionalString(raw?.dht_raw_status) ||
+      optionalString(raw?.dht_status) ||
+      "unknown",
+  );
   const sensorStaleTimeout = coerceNumber(raw?.sensor_stale_timeout, 45);
   const relayFeedbackTimeout = coerceNumber(raw?.relay_feedback_timeout, 12);
 
@@ -445,11 +469,12 @@ function getHvacOverview(system?: SystemState | null) {
     state = "active";
   }
 
-  const heartbeat = heartbeatAge < 0
-    ? "Waiting"
-    : heartbeatAge <= 5
-      ? `${heartbeatAge}s ago`
-      : `${heartbeatAge}s ago · delayed`;
+  const heartbeat =
+    heartbeatAge < 0
+      ? "Waiting"
+      : heartbeatAge <= 5
+        ? `${heartbeatAge}s ago`
+        : `${heartbeatAge}s ago · delayed`;
 
   return {
     status,
@@ -458,7 +483,10 @@ function getHvacOverview(system?: SystemState | null) {
     health: fault ? "Fault detected" : online ? "Healthy" : "Offline",
     heartbeat,
     sensor: sensorStatus === "Unknown" ? "Waiting" : sensorStatus,
-    sensorFreshness: heartbeatAge >= 0 && heartbeatAge <= sensorStaleTimeout ? "Healthy" : "Check telemetry",
+    sensorFreshness:
+      heartbeatAge >= 0 && heartbeatAge <= sensorStaleTimeout
+        ? "Healthy"
+        : "Check telemetry",
     relayVerification: relayFeedbackTimeout > 0 ? "Active" : "Not configured",
     state,
   };
@@ -470,10 +498,20 @@ function getSprinklerOverview(system?: SystemState | null) {
     : null;
 
   const running = Boolean(system?.sprinkler?.running || raw?.running);
-  const online = system?.sprinkler?.online !== false && raw?.online !== false && raw?.node_online !== false && raw?.controller_online !== false;
+  const online =
+    system?.sprinkler?.online !== false &&
+    raw?.online !== false &&
+    raw?.node_online !== false &&
+    raw?.controller_online !== false;
   const fault = Boolean(system?.fault || raw?.fault);
-  const zone = system?.sprinkler?.zone ?? raw?.zone ?? raw?.active_zone ?? raw?.current_zone;
-  const heartbeatAge = coerceNumber(raw?.last_heartbeat_msg_age ?? raw?.last_node_msg_age ?? raw?.last_controller_msg_age, -1);
+  const zone =
+    system?.sprinkler?.zone ?? raw?.zone ?? raw?.active_zone ?? raw?.current_zone;
+  const heartbeatAge = coerceNumber(
+    raw?.last_heartbeat_msg_age ??
+      raw?.last_node_msg_age ??
+      raw?.last_controller_msg_age,
+    -1,
+  );
   const activeRelays = Array.isArray(raw?.relay_zones)
     ? raw.relay_zones.filter(Boolean).length
     : Array.isArray(raw?.zones)
@@ -483,21 +521,28 @@ function getSprinklerOverview(system?: SystemState | null) {
         : 0;
 
   const nextRun = system?.sprinkler?.next_run ?? raw?.next_run ?? null;
-  const heartbeat = heartbeatAge < 0
-    ? "Waiting"
-    : heartbeatAge <= 5
-      ? `${heartbeatAge}s ago`
-      : `${heartbeatAge}s ago · delayed`;
+  const heartbeat =
+    heartbeatAge < 0
+      ? "Waiting"
+      : heartbeatAge <= 5
+        ? `${heartbeatAge}s ago`
+        : `${heartbeatAge}s ago · delayed`;
 
   return {
     status: !online ? "Offline" : running ? "Running" : "Idle",
     zone: running ? formatZone(zone as string | number | null) : "No active zone",
-    nextRun: nextRun ? formatMetricValue(nextRun) : formatScheduleSummary(system?.irrigation_schedule),
+    nextRun: nextRun
+      ? formatMetricValue(nextRun)
+      : formatScheduleSummary(system?.irrigation_schedule),
     health: fault ? "Fault detected" : online ? "Healthy" : "Offline",
     heartbeat,
     relays: `${activeRelays} active`,
     controller: formatScheduleController(system?.irrigation_schedule),
-    state: !online ? ("bad" as StatusState) : running ? ("active" as StatusState) : ("good" as StatusState),
+    state: !online
+      ? ("bad" as StatusState)
+      : running
+        ? ("active" as StatusState)
+        : ("good" as StatusState),
   };
 }
 
@@ -523,21 +568,36 @@ function getSystemOverview(system?: SystemState | null) {
   return {
     supervisor: "Online",
     mqtt: thermostatOnline && sprinklerOnline ? "Healthy" : "Node issue",
-    ai: system.ai_status?.toLowerCase() === "active" ? "Active" : formatMode(system.ai_status),
+    ai:
+      system.ai_status?.toLowerCase() === "active"
+        ? "Active"
+        : formatMode(system.ai_status),
     faults: system.fault ? "Fault present" : "No faults",
     automation: system.automation_mode === "auto" ? "Auto execute" : "Manual apply",
-    weather: rainChance >= 70 ? "Rain likely" : rainChance >= 40 ? "Rain possible" : "Normal",
+    weather:
+      rainChance >= 70
+        ? "Rain likely"
+        : rainChance >= 40
+          ? "Rain possible"
+          : "Normal",
     nodeSummary: `${onlineCount}/2 services online`,
   };
 }
 
 function getManualOverrideSummary(system?: SystemState | null) {
   const until = Number(system?.manual_override_until ?? 0);
-  const remainingMs = until > 1_000_000_000_000 ? until - Date.now() : until * 1000 - Date.now();
+  const remainingMs =
+    until > 1_000_000_000_000
+      ? until - Date.now()
+      : until * 1000 - Date.now();
   const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
 
   if (!until || remaining <= 0) {
-    return { active: false, label: "No manual lock", detail: "Autonomy is allowed when safety rules permit." };
+    return {
+      active: false,
+      label: "No manual lock",
+      detail: "Autonomy is allowed when safety rules permit.",
+    };
   }
 
   const minutes = Math.floor(remaining / 60);
@@ -575,11 +635,6 @@ type CycleSummary = {
   remainingLabel: string;
 };
 
-function coerceNumber(value: unknown, fallback = 0) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
-
 function parseDurationSeconds(value: unknown) {
   const minutes = coerceNumber(value, 0);
   return Math.max(0, Math.round(minutes * 60));
@@ -598,8 +653,13 @@ function formatDurationSeconds(value: number) {
 function parseClockToday(value?: string | null) {
   if (!value) return null;
 
-  const parts = String(value).trim().split(":").map((part) => Number(part));
-  if (parts.length < 2 || parts.some((part) => !Number.isFinite(part))) return null;
+  const parts = String(value)
+    .trim()
+    .split(":")
+    .map((part) => Number(part));
+  if (parts.length < 2 || parts.some((part) => !Number.isFinite(part))) {
+    return null;
+  }
 
   const [hours, minutes, seconds = 0] = parts;
   const date = new Date();
@@ -621,7 +681,6 @@ function timelineZoneLabel(value: unknown) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "Zone --";
 
-  // Sprinkler controller now returns display zone numbers 1-8.
   return `Zone ${n}`;
 }
 
@@ -629,7 +688,6 @@ function timelineZoneNumber(value: unknown) {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
 
-  // Sprinkler controller now returns display zone numbers 1-8.
   return n;
 }
 
@@ -704,7 +762,10 @@ function getIrrigationTimeline(system?: SystemState | null): TimelineEntry[] {
       } else if (index === activeIndex) {
         status = "active";
         const duration = Math.max(1, entry.durationSeconds);
-        progress = Math.max(0, Math.min(100, ((duration - remainingSeconds) / duration) * 100));
+        progress = Math.max(
+          0,
+          Math.min(100, ((duration - remainingSeconds) / duration) * 100),
+        );
       }
     }
 
@@ -741,9 +802,15 @@ function getIrrigationCycleSummary(
   }
 
   const futureEntries = activeIndex >= 0 ? entries.slice(activeIndex + 1) : [];
-  const futureSeconds = futureEntries.reduce((total, entry) => total + entry.durationSeconds, 0);
+  const futureSeconds = futureEntries.reduce(
+    (total, entry) => total + entry.durationSeconds,
+    0,
+  );
   const transitionSeconds = futureEntries.length > 0 ? futureEntries.length * 6 : 0;
-  const totalRemainingSeconds = Math.max(0, remainingSeconds + futureSeconds + transitionSeconds);
+  const totalRemainingSeconds = Math.max(
+    0,
+    remainingSeconds + futureSeconds + transitionSeconds,
+  );
   const completeAt = new Date(Date.now() + totalRemainingSeconds * 1000);
 
   return {
@@ -1216,7 +1283,6 @@ function Label({ children }: { children: ReactNode }) {
   );
 }
 
-
 function EmptyChatState({
   onSuggestion,
 }: {
@@ -1240,7 +1306,7 @@ function EmptyChatState({
           Orion is monitoring your system
         </h3>
         <p className="mt-2 text-sm leading-6 text-slate-400">
-          Ask about the live home state, inspect a device, or let Orion explain the current recommendation.
+          Ask about live telemetry, inspect a device, or let Orion explain the current recommendation.
         </p>
 
         <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -1502,7 +1568,10 @@ export default function Home() {
     loadSystem();
     loadAutomationMode();
 
-    const interval = window.setInterval(loadSystem, Number.isFinite(SYSTEM_POLL_MS) ? SYSTEM_POLL_MS : 3000);
+    const interval = window.setInterval(
+      loadSystem,
+      Number.isFinite(SYSTEM_POLL_MS) ? SYSTEM_POLL_MS : 3000,
+    );
 
     return () => window.clearInterval(interval);
   }, [loadSessions, loadSystem, loadAutomationMode]);
@@ -1548,10 +1617,7 @@ export default function Home() {
   };
 
   const postControl = useCallback(
-    async (
-      path: string,
-      body: Record<string, unknown> = {},
-    ) => {
+    async (path: string, body: Record<string, unknown> = {}) => {
       setControlLoading(true);
 
       try {
@@ -1631,9 +1697,6 @@ export default function Home() {
       }
 
       try {
-        // Recommendations now execute through the same real control endpoints
-        // that the assistant/manual controls use. This avoids the old bug where
-        // recommendations only logged a decision but did not touch the device.
         if (orionRecommendation.action === "stop_sprinkler") {
           return await postControl("/v1/control/sprinkler/stop", {
             source: "recommendation",
@@ -1662,9 +1725,6 @@ export default function Home() {
     },
     [controlLoading, orionRecommendation, postControl, system],
   );
-
-  // Auto execution is handled by the backend AI loop after you switch Orion to Auto mode.
-  // The frontend only provides the mode toggle and manual Apply button.
 
   const runSprinklerZone = async () => {
     if (controlLoading) return;
@@ -1962,7 +2022,7 @@ export default function Home() {
                 Orion
               </h1>
               <p className="truncate text-xs text-slate-400">
-                Home assistant, live device state, weather, and automation
+                Distributed edge automation, live telemetry, and AI-assisted control
               </p>
             </div>
           </div>
@@ -2016,7 +2076,13 @@ export default function Home() {
               <MetricTile
                 label="MQTT"
                 value={systemOverview.mqtt}
-                state={systemOverview.mqtt === "Healthy" ? "good" : systemOverview.mqtt === "Waiting" ? "neutral" : "warn"}
+                state={
+                  systemOverview.mqtt === "Healthy"
+                    ? "good"
+                    : systemOverview.mqtt === "Waiting"
+                      ? "neutral"
+                      : "warn"
+                }
               />
               <MetricTile
                 label="AI Engine"
@@ -2030,68 +2096,148 @@ export default function Home() {
               />
             </div>
 
-            <div className="border-t border-slate-800/80 p-5">
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-white">
-                        HVAC Runtime State
-                      </div>
-                      <div className="mt-1 text-xs text-slate-400">
-                        Live equipment, sensor, and relay status
-                      </div>
-                    </div>
-                    <StatusPill
-                      label={hvacOverview.health}
-                      state={system?.fault ? "bad" : hvacOverview.state === "bad" ? "bad" : "good"}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Equipment" value={hvacOverview.status} state={hvacOverview.state} />
-                    <Field label="Active Stage" value={hvacOverview.stage} state={hvacOverview.state} />
-                    <Field label="Fan" value={hvacOverview.fan} state={hvacOverview.fan === "Running" ? "active" : "neutral"} />
-                    <Field label="Heartbeat" value={hvacOverview.heartbeat} />
-                    <Field label="Sensor" value={hvacOverview.sensor} state={hvacOverview.sensorFreshness === "Healthy" ? "good" : "warn"} />
-                    <Field label="Relay Check" value={hvacOverview.relayVerification} state={hvacOverview.relayVerification === "Active" ? "good" : "neutral"} />
+            <details className="border-t border-slate-800/80">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-800/25 hover:text-white [&::-webkit-details-marker]:hidden">
+                <div>
+                  <div className="text-slate-100">Runtime details</div>
+                  <div className="mt-1 text-xs font-normal text-slate-500">
+                    HVAC and irrigation telemetry, heartbeat, relay, and sensor state
                   </div>
                 </div>
+                <span className="text-xs text-slate-500">Expand</span>
+              </summary>
 
-                <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-white">
-                        Irrigation Runtime State
+              <div className="p-5 pt-2">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">
+                          HVAC Runtime State
+                        </div>
+                        <div className="mt-1 text-xs text-slate-400">
+                          Live equipment, sensor, and relay status
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs text-slate-400">
-                        Distributed sprinkler controller status
-                      </div>
+                      <StatusPill
+                        label={hvacOverview.health}
+                        state={
+                          system?.fault
+                            ? "bad"
+                            : hvacOverview.state === "bad"
+                              ? "bad"
+                              : "good"
+                        }
+                      />
                     </div>
-                    <StatusPill
-                      label={sprinklerOverview.health}
-                      state={system?.fault ? "bad" : sprinklerOverview.state === "bad" ? "bad" : "good"}
-                    />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field
+                        label="Equipment"
+                        value={hvacOverview.status}
+                        state={hvacOverview.state}
+                      />
+                      <Field
+                        label="Active Stage"
+                        value={hvacOverview.stage}
+                        state={hvacOverview.state}
+                      />
+                      <Field
+                        label="Fan"
+                        value={hvacOverview.fan}
+                        state={hvacOverview.fan === "Running" ? "active" : "neutral"}
+                      />
+                      <Field label="Heartbeat" value={hvacOverview.heartbeat} />
+                      <Field
+                        label="Sensor"
+                        value={hvacOverview.sensor}
+                        state={
+                          hvacOverview.sensorFreshness === "Healthy"
+                            ? "good"
+                            : "warn"
+                        }
+                      />
+                      <Field
+                        label="Relay Check"
+                        value={hvacOverview.relayVerification}
+                        state={
+                          hvacOverview.relayVerification === "Active"
+                            ? "good"
+                            : "neutral"
+                        }
+                      />
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="System" value={sprinklerOverview.status} state={sprinklerOverview.state} />
-                    <Field label="Active Zone" value={sprinklerOverview.zone} state={sprinklerOverview.state} />
-                    <Field label="Next Run" value={sprinklerOverview.nextRun} />
-                    <Field label="Heartbeat" value={sprinklerOverview.heartbeat} />
-                    <Field label="Relay State" value={sprinklerOverview.relays} state={sprinklerOverview.relays.startsWith("0") ? "neutral" : "active"} />
-                    <Field label="Controller" value={sprinklerOverview.controller} state="good" />
+                  <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">
+                          Irrigation Runtime State
+                        </div>
+                        <div className="mt-1 text-xs text-slate-400">
+                          Distributed sprinkler controller status
+                        </div>
+                      </div>
+                      <StatusPill
+                        label={sprinklerOverview.health}
+                        state={
+                          system?.fault
+                            ? "bad"
+                            : sprinklerOverview.state === "bad"
+                              ? "bad"
+                              : "good"
+                        }
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field
+                        label="System"
+                        value={sprinklerOverview.status}
+                        state={sprinklerOverview.state}
+                      />
+                      <Field
+                        label="Active Zone"
+                        value={sprinklerOverview.zone}
+                        state={sprinklerOverview.state}
+                      />
+                      <Field label="Next Run" value={sprinklerOverview.nextRun} />
+                      <Field label="Heartbeat" value={sprinklerOverview.heartbeat} />
+                      <Field
+                        label="Relay State"
+                        value={sprinklerOverview.relays}
+                        state={
+                          sprinklerOverview.relays.startsWith("0")
+                            ? "neutral"
+                            : "active"
+                        }
+                      />
+                      <Field
+                        label="Controller"
+                        value={sprinklerOverview.controller}
+                        state="good"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </details>
           </Panel>
 
           <CollapsibleCard
             icon="🤖"
             title="Orion AI"
             subtitle={lastUpdatedLabel}
-            status={!system ? "Loading" : system.fault ? "Fault" : aiActive ? "Autonomous Monitoring" : formatMode(system.ai_status)}
+            status={
+              !system
+                ? "Loading"
+                : system.fault
+                  ? "Fault"
+                  : aiActive
+                    ? "Autonomous Monitoring"
+                    : formatMode(system.ai_status)
+            }
             statusState={system?.fault ? "bad" : aiActive ? "good" : "neutral"}
             primaryLabel="Automation state"
             primaryValue={formatAutomationState(system?.mode)}
@@ -2126,12 +2272,18 @@ export default function Home() {
                       Last decision
                     </div>
                     <div className="mt-2 text-lg font-semibold tracking-tight text-white">
-                      {system?.last_decision?.action ? formatMode(system.last_decision.action) : "Autonomous Monitoring"}
+                      {system?.last_decision?.action
+                        ? formatMode(system.last_decision.action)
+                        : "Autonomous Monitoring"}
                     </div>
                   </div>
 
                   <StatusPill
-                    label={system?.last_decision?.time ? formatLastUpdated(system?.last_decision?.time) : "No action yet"}
+                    label={
+                      system?.last_decision?.time
+                        ? formatLastUpdated(system?.last_decision?.time)
+                        : "No action yet"
+                    }
                     state={system?.last_decision?.action ? "active" : "neutral"}
                   />
                 </div>
@@ -2165,7 +2317,11 @@ export default function Home() {
                     <Button
                       onClick={() => executeRecommendedAction("manual")}
                       disabled={controlLoading || autoExecutionLoading}
-                      variant={orionRecommendation.action === "stop_sprinkler" ? "danger" : "success"}
+                      variant={
+                        orionRecommendation.action === "stop_sprinkler"
+                          ? "danger"
+                          : "success"
+                      }
                       className="h-9"
                     >
                       {orionRecommendation.applyLabel || "Apply"}
@@ -2173,7 +2329,11 @@ export default function Home() {
                   )}
 
                   <Button
-                    onClick={() => askSuggestion("Explain the current home automation recommendation using only the live system state.")}
+                    onClick={() =>
+                      askSuggestion(
+                        "Explain the current home automation recommendation using only the live system state.",
+                      )
+                    }
                     variant="secondary"
                     className="h-9"
                   >
@@ -2181,7 +2341,9 @@ export default function Home() {
                   </Button>
 
                   <Button
-                    onClick={() => askSuggestion("What should Orion do next for the home system?")}
+                    onClick={() =>
+                      askSuggestion("What should Orion do next for the home system?")
+                    }
                     variant="ghost"
                     className="h-9"
                   >
@@ -2196,7 +2358,7 @@ export default function Home() {
                         Execution mode
                       </div>
                       <p className="mt-1 text-xs leading-5 text-slate-400">
-                        Manual requires Apply. Auto can run safe irrigation actions when the recommendation changes.
+                        Manual requires operator approval. Auto allows Orion to apply approved low-risk actions through the control layer.
                       </p>
                     </div>
                     <StatusPill
@@ -2231,10 +2393,7 @@ export default function Home() {
                 value={executionSummary.status}
                 state={executionSummary.state}
               />
-              <Field
-                label="Action"
-                value={executionSummary.action}
-              />
+              <Field label="Action" value={executionSummary.action} />
               <Field
                 label="Safety"
                 value={executionSummary.safety}
@@ -2250,8 +2409,12 @@ export default function Home() {
             <div className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-950/25 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-100">System load</div>
-                  <div className="mt-1 text-xs text-slate-400">Live resource usage from the backend</div>
+                  <div className="text-sm font-semibold text-slate-100">
+                    System load
+                  </div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    Live resource usage from the backend
+                  </div>
                 </div>
                 <StatusPill label={lastUpdatedLabel} state="neutral" />
               </div>
@@ -2260,25 +2423,49 @@ export default function Home() {
                 <ProgressStat
                   label="CPU"
                   value={system?.cpu}
-                  state={Number(system?.cpu ?? 0) >= 80 ? "bad" : Number(system?.cpu ?? 0) >= 60 ? "warn" : "neutral"}
+                  state={
+                    Number(system?.cpu ?? 0) >= 80
+                      ? "bad"
+                      : Number(system?.cpu ?? 0) >= 60
+                        ? "warn"
+                        : "neutral"
+                  }
                 />
                 <ProgressStat
                   label="Memory"
                   value={system?.memory}
-                  state={Number(system?.memory ?? 0) >= 80 ? "bad" : Number(system?.memory ?? 0) >= 60 ? "warn" : "neutral"}
+                  state={
+                    Number(system?.memory ?? 0) >= 80
+                      ? "bad"
+                      : Number(system?.memory ?? 0) >= 60
+                        ? "warn"
+                        : "neutral"
+                  }
                 />
                 <ProgressStat
                   label="GPU"
                   value={system?.gpu}
-                  state={Number(system?.gpu ?? 0) >= 80 ? "bad" : Number(system?.gpu ?? 0) >= 60 ? "warn" : "neutral"}
+                  state={
+                    Number(system?.gpu ?? 0) >= 80
+                      ? "bad"
+                      : Number(system?.gpu ?? 0) >= 60
+                        ? "warn"
+                        : "neutral"
+                  }
                 />
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <StatusPill label={`Weather: ${weatherStatus}`} state={weatherPillState} />
-              <StatusPill label={`Sprinkler: ${sprinklerStatus}`} state={sprinklerPillState} />
-              <StatusPill label={`Thermostat: ${thermostatStatus}`} state={thermostatPillState} />
+              <StatusPill
+                label={`Sprinkler: ${sprinklerStatus}`}
+                state={sprinklerPillState}
+              />
+              <StatusPill
+                label={`Thermostat: ${thermostatStatus}`}
+                state={thermostatPillState}
+              />
             </div>
 
             <details className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-950/30">
@@ -2319,7 +2506,10 @@ export default function Home() {
                 {
                   label: "Rain",
                   value: formatRain(system?.weather?.rain_chance),
-                  state: Number(system?.weather?.rain_chance ?? 0) >= 70 ? "warn" : "neutral",
+                  state:
+                    Number(system?.weather?.rain_chance ?? 0) >= 70
+                      ? "warn"
+                      : "neutral",
                 },
                 {
                   label: "Feels",
@@ -2338,8 +2528,14 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Condition" value={system?.weather?.condition || "--"} />
                 <Field label="Precip" value={formatPrecip(system?.weather?.precip_in)} />
-                <Field label="High" value={formatTemp(system?.weather?.forecast_today?.max_temp)} />
-                <Field label="Low" value={formatTemp(system?.weather?.forecast_today?.min_temp)} />
+                <Field
+                  label="High"
+                  value={formatTemp(system?.weather?.forecast_today?.max_temp)}
+                />
+                <Field
+                  label="Low"
+                  value={formatTemp(system?.weather?.forecast_today?.min_temp)}
+                />
                 <Field label="Updated" value={weatherUpdatedLabel} />
                 <Field label="Source" value={system?.weather?.source || "--"} />
               </div>
@@ -2360,24 +2556,24 @@ export default function Home() {
               primaryLabel="Current state"
               primaryValue={sprinklerOverview.status}
               metrics={[
-{
-  label: "Mode",
-  value: formatMode(system?.sprinkler?.mode),
-},
-{
-  label: "Zone",
-  value: sprinklerOverview.zone,
-  state: sprinklerOverview.state,
-},
-{
-  label: "Schedule",
-  value: sprinklerOverview.nextRun,
-},
-{
-  label: "Online",
-  value: yesNo(system?.sprinkler?.online),
-  state: onlineState(system?.sprinkler?.online),
-},
+                {
+                  label: "Mode",
+                  value: formatMode(system?.sprinkler?.mode),
+                },
+                {
+                  label: "Zone",
+                  value: sprinklerOverview.zone,
+                  state: sprinklerOverview.state,
+                },
+                {
+                  label: "Schedule",
+                  value: sprinklerOverview.nextRun,
+                },
+                {
+                  label: "Online",
+                  value: yesNo(system?.sprinkler?.online),
+                  state: onlineState(system?.sprinkler?.online),
+                },
               ]}
             >
               <div className="space-y-4">
@@ -2391,7 +2587,8 @@ export default function Home() {
                         <div className="mt-1 text-xs text-blue-200/80">
                           {cycleSummary.activeLabel} is currently active
                           {cycleSummary.activeEta ? ` · ${cycleSummary.activeEta}` : ""}
-                          {cycleSummary.cycleEta && cycleSummary.cycleEta !== "No active cycle"
+                          {cycleSummary.cycleEta &&
+                          cycleSummary.cycleEta !== "No active cycle"
                             ? ` · ${cycleSummary.cycleEta}`
                             : ""}
                         </div>
@@ -2432,7 +2629,9 @@ export default function Home() {
                   <div className="rounded-2xl border border-slate-800/80 bg-slate-950/25 p-4">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-slate-100">Upcoming zone timeline</div>
+                        <div className="text-sm font-semibold text-slate-100">
+                          Upcoming zone timeline
+                        </div>
                         <div className="mt-1 text-xs text-slate-400">
                           {cycleSummary.running
                             ? `${cycleSummary.activeLabel} active · ${cycleSummary.remainingLabel} remaining`
@@ -2443,7 +2642,10 @@ export default function Home() {
                         {cycleSummary.running && (
                           <StatusPill label={cycleSummary.cycleEta} state="active" />
                         )}
-                        <StatusPill label={formatScheduleController(system?.irrigation_schedule)} state="active" />
+                        <StatusPill
+                          label={formatScheduleController(system?.irrigation_schedule)}
+                          state="active"
+                        />
                       </div>
                     </div>
 
@@ -2453,9 +2655,12 @@ export default function Home() {
                           key={`${item.label}-${item.time}-${index}`}
                           className={cx(
                             "rounded-xl border p-3 transition",
-                            item.status === "active" && "border-blue-300/60 bg-blue-500/15 shadow-lg shadow-blue-950/20",
-                            item.status === "completed" && "border-emerald-400/25 bg-emerald-500/10",
-                            item.status === "upcoming" && "border-slate-800/70 bg-slate-950/35",
+                            item.status === "active" &&
+                              "border-blue-300/60 bg-blue-500/15 shadow-lg shadow-blue-950/20",
+                            item.status === "completed" &&
+                              "border-emerald-400/25 bg-emerald-500/10",
+                            item.status === "upcoming" &&
+                              "border-slate-800/70 bg-slate-950/35",
                           )}
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -2465,9 +2670,12 @@ export default function Home() {
                             <div
                               className={cx(
                                 "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                                item.status === "active" && "bg-blue-400/15 text-blue-200",
-                                item.status === "completed" && "bg-emerald-400/10 text-emerald-200",
-                                item.status === "upcoming" && "bg-slate-800/70 text-slate-400",
+                                item.status === "active" &&
+                                  "bg-blue-400/15 text-blue-200",
+                                item.status === "completed" &&
+                                  "bg-emerald-400/10 text-emerald-200",
+                                item.status === "upcoming" &&
+                                  "bg-slate-800/70 text-slate-400",
                               )}
                             >
                               {item.status === "active"
@@ -2477,10 +2685,14 @@ export default function Home() {
                                   : "Next"}
                             </div>
                           </div>
-                          <div className="mt-1 text-sm font-semibold text-white">{item.label}</div>
+                          <div className="mt-1 text-sm font-semibold text-white">
+                            {item.label}
+                          </div>
                           <div className="mt-1 text-xs text-slate-400">
                             {item.duration}
-                            {item.endTime && item.endTime !== "--" ? ` · ends ${item.endTime}` : ""}
+                            {item.endTime && item.endTime !== "--"
+                              ? ` · ends ${item.endTime}`
+                              : ""}
                           </div>
                           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800/80">
                             <div
@@ -2563,15 +2775,39 @@ export default function Home() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Next run" value={formatMetricValue(system?.sprinkler?.next_run) || "No schedule"} />
-                      <Field label="Schedule" value={formatScheduleSummary(system?.irrigation_schedule)} />
-                      <Field label="Controller" value={formatScheduleController(system?.irrigation_schedule)} state="good" />
-                      <Field label="Skip next" value={yesNo(system?.irrigation_schedule?.skip_next_run)} state={system?.irrigation_schedule?.skip_next_run ? "warn" : "neutral"} />
+                      <Field
+                        label="Next run"
+                        value={
+                          formatMetricValue(system?.sprinkler?.next_run) ||
+                          "No schedule"
+                        }
+                      />
+                      <Field
+                        label="Schedule"
+                        value={formatScheduleSummary(system?.irrigation_schedule)}
+                      />
+                      <Field
+                        label="Controller"
+                        value={formatScheduleController(system?.irrigation_schedule)}
+                        state="good"
+                      />
+                      <Field
+                        label="Skip next"
+                        value={yesNo(system?.irrigation_schedule?.skip_next_run)}
+                        state={
+                          system?.irrigation_schedule?.skip_next_run
+                            ? "warn"
+                            : "neutral"
+                        }
+                      />
                       <Field label="Source" value={system?.sprinkler?.source || "--"} />
                     </div>
 
                     <pre className="max-h-56 overflow-auto rounded-xl bg-slate-950/50 p-3 text-xs leading-5 text-slate-300">
-                      {formatJson(system?.sprinkler?.raw ?? system?.sprinkler, "No sprinkler data")}
+                      {formatJson(
+                        system?.sprinkler?.raw ?? system?.sprinkler,
+                        "No sprinkler data",
+                      )}
                     </pre>
                   </div>
                 </details>
@@ -2609,10 +2845,28 @@ export default function Home() {
             >
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Online" value={yesNo(system?.thermostat?.online)} state={onlineState(system?.thermostat?.online)} />
-                  <Field label="Equipment" value={hvacOverview.status} state={hvacOverview.state} />
-                  <Field label="Active Stage" value={hvacOverview.stage} state={hvacOverview.state} />
-                  <Field label="Sensor Freshness" value={hvacOverview.sensorFreshness} state={hvacOverview.sensorFreshness === "Healthy" ? "good" : "warn"} />
+                  <Field
+                    label="Online"
+                    value={yesNo(system?.thermostat?.online)}
+                    state={onlineState(system?.thermostat?.online)}
+                  />
+                  <Field
+                    label="Equipment"
+                    value={hvacOverview.status}
+                    state={hvacOverview.state}
+                  />
+                  <Field
+                    label="Active Stage"
+                    value={hvacOverview.stage}
+                    state={hvacOverview.state}
+                  />
+                  <Field
+                    label="Sensor Freshness"
+                    value={hvacOverview.sensorFreshness}
+                    state={
+                      hvacOverview.sensorFreshness === "Healthy" ? "good" : "warn"
+                    }
+                  />
                 </div>
 
                 {system?.thermostat?.error && (
@@ -2651,7 +2905,10 @@ export default function Home() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <Label>HVAC Mode</Label>
-                        <SelectInput value={thermostatMode} onChange={setThermostatMode}>
+                        <SelectInput
+                          value={thermostatMode}
+                          onChange={setThermostatMode}
+                        >
                           <option value="auto">Auto</option>
                           <option value="cool">Cool</option>
                           <option value="heat">Heat</option>
@@ -2686,7 +2943,10 @@ export default function Home() {
                     </div>
 
                     <pre className="max-h-56 overflow-auto rounded-xl bg-slate-950/50 p-3 text-xs leading-5 text-slate-300">
-                      {formatJson(system?.thermostat?.raw ?? system?.thermostat, "No thermostat data")}
+                      {formatJson(
+                        system?.thermostat?.raw ?? system?.thermostat,
+                        "No thermostat data",
+                      )}
                     </pre>
                   </div>
                 </details>
@@ -2713,9 +2973,7 @@ export default function Home() {
             </div>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-6">
-              {messages.length === 0 && (
-                <EmptyChatState onSuggestion={askSuggestion} />
-              )}
+              {messages.length === 0 && <EmptyChatState onSuggestion={askSuggestion} />}
 
               {messages.map((msg, i) => (
                 <div
@@ -2781,10 +3039,22 @@ export default function Home() {
             </div>
           </Panel>
 
-          <Panel className="xl:max-h-64">
-            <PanelHeader title="Saved Chats" subtitle="Continue a conversation" />
+          <details className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/70 shadow-xl shadow-black/10 ring-1 ring-white/[0.03] backdrop-blur">
+            <summary className="cursor-pointer list-none px-5 py-4 transition hover:bg-slate-800/25 [&::-webkit-details-marker]:hidden">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold tracking-tight text-slate-100">
+                    Saved Chats
+                  </h2>
+                  <p className="mt-1 truncate text-xs text-slate-400">
+                    Continue a conversation
+                  </p>
+                </div>
+                <span className="text-sm text-slate-500">▾</span>
+              </div>
+            </summary>
 
-            <div className="max-h-48 space-y-2 overflow-y-auto p-5">
+            <div className="max-h-48 space-y-2 overflow-y-auto border-t border-slate-800/80 p-5">
               {sessions.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-700/80 bg-slate-950/30 p-4 text-sm text-slate-400">
                   No saved chats yet.
@@ -2834,7 +3104,7 @@ export default function Home() {
                 );
               })}
             </div>
-          </Panel>
+          </details>
         </aside>
       </main>
     </div>
