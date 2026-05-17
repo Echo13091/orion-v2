@@ -127,6 +127,24 @@ def register_vision(app):
                 online=False,
             )
 
+    @app.route("/v1/vision/grass-condition", methods=["GET"])
+    def vision_grass_condition():
+        try:
+            payload = _read_json(f"{VISION_NODE_URL}/api/grass-condition")
+            return jsonify(payload)
+        except urllib.error.URLError as e:
+            return _json_error(
+                "Grass condition analysis unavailable",
+                503,
+                detail=str(e),
+            )
+        except Exception as e:
+            return _json_error(
+                "Failed to analyze grass condition",
+                500,
+                detail=str(e),
+            )
+
     @app.route("/v1/vision/snapshot", methods=["GET"])
     def vision_snapshot():
         try:

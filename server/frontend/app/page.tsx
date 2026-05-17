@@ -138,6 +138,21 @@ type VisionStatus = {
   detail?: string;
 };
 
+type GrassCondition = {
+  ok?: boolean;
+  condition?: string;
+  score?: number;
+  dryness_index?: number;
+  green_percent?: number;
+  dry_percent?: number;
+  dark_percent?: number;
+  valid_percent?: number;
+  reason?: string;
+  time?: string;
+  error?: string;
+  detail?: string;
+};
+
 type StatusState = "good" | "bad" | "warn" | "neutral" | "active";
 
 type AutomationMode = "manual" | "auto";
@@ -1360,6 +1375,7 @@ export default function Home() {
 
   const [system, setSystem] = useState<SystemState | null>(null);
   const [vision, setVision] = useState<VisionStatus | null>(null);
+  const [grassCondition, setGrassCondition] = useState<GrassCondition | null>(null);
 
   const [controlLoading, setControlLoading] = useState(false);
   const [controlResult, setControlResult] = useState<unknown>(null);
@@ -1626,6 +1642,29 @@ export default function Home() {
     }
   }, []);
 
+  const loadGrassCondition = useCallback(async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/v1/vision/grass-condition`);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setGrassCondition({
+          ok: false,
+          error: data?.error || "Grass condition unavailable",
+          detail: data?.detail,
+        });
+        return;
+      }
+
+      setGrassCondition(data);
+    } catch (err) {
+      setGrassCondition({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
   const loadAutomationMode = useCallback(async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/v1/control/ai/mode`);
@@ -1642,18 +1681,20 @@ export default function Home() {
     loadSessions();
     loadSystem();
     loadVision();
+    loadGrassCondition();
     loadAutomationMode();
 
     const interval = window.setInterval(
       () => {
         loadSystem();
         loadVision();
+        loadGrassCondition();
       },
       Number.isFinite(SYSTEM_POLL_MS) ? SYSTEM_POLL_MS : 3000,
     );
 
     return () => window.clearInterval(interval);
-  }, [loadSessions, loadSystem, loadVision, loadAutomationMode]);
+  }, [loadSessions, loadSystem, loadVision, loadGrassCondition, loadAutomationMode]);
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -3006,6 +3047,128 @@ export default function Home() {
                   label="Node"
                   value={vision?.node_id || "vision_node_1"}
                 />
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-950/25 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-100">
+                      Visual Lawn Condition
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      Deterministic camera-based grass color analysis from the selected environmental camera region
+                    </div>
+                  </div>
+                  <StatusPill
+                    label={formatMode(grassCondition?.condition || "Waiting")}
+                    state={
+                      grassCondition?.condition === "healthy"
+                        ? "good"
+                        : grassCondition?.condition === "fair"
+                          ? "warn"
+                          : grassCondition?.condition === "stressed" ||
+                              grassCondition?.condition === "poor"
+                            ? "bad"
+                            : "neutral"
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field
+                    label="Condition"
+                    value={formatMode(grassCondition?.condition)}
+                    state={
+                      grassCondition?.condition === "healthy"
+                        ? "good"
+                        : grassCondition?.condition === "fair"
+                          ? "warn"
+                          : grassCondition?.condition === "stressed" ||
+                              grassCondition?.condition === "poor"
+                            ? "bad"
+                            : "neutral"
+                    }
+                  />
+                  <Field
+                    label="Score"
+                    value={
+                      Number.isFinite(Number(grassCondition?.score))
+                        ? `${Number(grassCondition?.score).toFixed(0)} / 100`
+                        : "--"
+                    }
+                    state={
+                      Number(grassCondition?.score ?? 0) >= 65
+                        ? "good"
+                        : Number(grassCondition?.score ?? 0) >= 45
+                          ? "warn"
+                          : Number(grassCondition?.score ?? 0) > 0
+                            ? "bad"
+                            : "neutral"
+                    }
+                  />
+                  <Field
+                    label="Dryness"
+                    value={
+                      Number.isFinite(Number(grassCondition?.dryness_index))
+                        ? Number(grassCondition?.dryness_index).toFixed(3)
+                        : "--"
+                    }
+                  />
+                  <Field
+                    label="Green"
+                    value={
+                      Number.isFinite(Number(grassCondition?.green_percent))
+                        ? `${Number(grassCondition?.green_percent).toFixed(1)}%`
+                        : "--"
+                    }
+                    state="good"
+                  />
+                  <Field
+                    label="Dry tones"
+                    value={
+                      Number.isFinite(Number(grassCondition?.dry_percent))
+                        ? `${Number(grassCondition?.dry_percent).toFixed(1)}%`
+                        : "--"
+                    }
+                    state={
+                      Number(grassCondition?.dry_percent ?? 0) >= 15
+                        ? "warn"
+                        : "neutral"
+                    }
+                  />
+                  <Field
+                    label="Valid area"
+                    value={
+                      Number.isFinite(Number(grassCondition?.valid_percent))
+                        ? `${Number(grassCondition?.valid_percent).toFixed(1)}%`
+                        : "--"
+                    }
+                  />
+                </div>
+
+                {grassCondition?.reason && (
+                  <p className="mt-3 text-xs leading-5 text-slate-400">
+                    {grassCondition.reason}
+                  </p>
+                )}
+
+                {grassCondition?.error && (
+                  <div className="mt-3 rounded-xl border border-red-400/15 bg-red-500/10 p-3 text-xs leading-5 text-red-200">
+                    {grassCondition.error}
+                    {grassCondition.detail ? ` · ${grassCondition.detail}` : ""}
+                  </div>
+                )}
+
+                <div className="mt-4">
+                  <Button
+                    onClick={loadGrassCondition}
+                    disabled={!vision?.online}
+                    variant="secondary"
+                    className="h-9"
+                  >
+                    Analyze lawn
+                  </Button>
+                </div>
               </div>
 
               {vision?.error && (
