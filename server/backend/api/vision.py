@@ -193,6 +193,37 @@ def register_vision(app):
                 detail=str(e),
             )
 
+    @app.route("/v1/vision/offer", methods=["POST"])
+    def vision_offer():
+        data = request.json or {}
+
+        if not data.get("sdp") or not data.get("type"):
+            return _json_error("Missing WebRTC offer SDP/type.", 400)
+
+        try:
+            answer = _post_json(
+                f"{VISION_NODE_URL}/offer",
+                {
+                    "sdp": data.get("sdp"),
+                    "type": data.get("type"),
+                },
+                timeout=max(VISION_TIMEOUT, 10.0),
+            )
+
+            return jsonify(answer)
+        except urllib.error.URLError as e:
+            return _json_error(
+                "Vision WebRTC offer failed",
+                503,
+                detail=str(e),
+            )
+        except Exception as e:
+            return _json_error(
+                "Failed to negotiate vision stream",
+                500,
+                detail=str(e),
+            )
+
     @app.route("/v1/vision/restart-camera", methods=["POST"])
     def vision_restart_camera():
         try:

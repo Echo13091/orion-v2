@@ -1375,6 +1375,12 @@ export default function Home() {
   const [autoExecutionLoading, setAutoExecutionLoading] = useState(false);
 
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const visionVideoRef = useRef<HTMLVideoElement | null>(null);
+  const visionPcRef = useRef<RTCPeerConnection | null>(null);
+  const [visionStreamState, setVisionStreamState] = useState<
+    "idle" | "connecting" | "connected" | "error"
+  >("idle");
+
 
   const decisionResultText = useMemo(() => {
     return formatJson(system?.last_decision?.result, "No recent result");
@@ -2064,6 +2070,134 @@ export default function Home() {
     setInput(value);
   };
 
+  const stopVisionStream = () => {
+    const pc = visionPcRef.current;
+
+    if (pc) {
+      pc.ontrack = null;
+      pc.onconnectionstatechange = null;
+      pc.oniceconnectionstatechange = null;
+      pc.close();
+      visionPcRef.current = null;
+    }
+
+    if (visionVideoRef.current) {
+      visionVideoRef.current.pause();
+      visionVideoRef.current.srcObject = null;
+      visionVideoRef.current.removeAttribute("src");
+      visionVideoRef.current.load();
+    }
+
+    setVisionStreamState("idle");
+  };
+
+  const startVisionStream = async () => {
+    if (visionPcRef.current || visionStreamState === "connecting") return;
+
+    setVisionStreamState("connecting");
+
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      visionPcRef.current = pc;
+
+      pc.ontrack = (event) => {
+        const [stream] = event.streams;
+
+        if (stream && visionVideoRef.current) {
+          visionVideoRef.current.srcObject = stream;
+        }
+
+        setVisionStreamState("connected");
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (
+          pc.connectionState === "failed" ||
+          pc.connectionState === "closed" ||
+          pc.connectionState === "disconnected"
+        ) {
+          setVisionStreamState("error");
+        }
+
+        if (pc.connectionState === "connected") {
+          setVisionStreamState("connected");
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        if (
+          pc.iceConnectionState === "failed" ||
+          pc.iceConnectionState === "closed" ||
+          pc.iceConnectionState === "disconnected"
+        ) {
+          setVisionStreamState("error");
+        }
+
+        if (
+          pc.iceConnectionState === "connected" ||
+          pc.iceConnectionState === "completed"
+        ) {
+          setVisionStreamState("connected");
+        }
+      };
+
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: true,
+      });
+
+      await pc.setLocalDescription(offer);
+
+      const res = await fetch(`${BACKEND_URL}/v1/vision/offer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sdp: offer.sdp,
+          type: offer.type,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to negotiate vision stream");
+      }
+
+      const answer = await res.json();
+
+      await pc.setRemoteDescription(answer);
+      await loadVision();
+    } catch (err) {
+      console.error("Vision stream error:", err);
+      stopVisionStream();
+      setVisionStreamState("error");
+    }
+  };
+
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      stopVisionStream();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        stopVisionStream();
+      }
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      stopVisionStream();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <style>{`
@@ -2563,8 +2697,8 @@ export default function Home() {
           <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3">
             <CollapsibleCard
               icon="📷"
-              title="Bird Feeder Camera"
-              subtitle={vision?.node_name || "Orion Vision Node"}
+              title="Orion Vision Node"
+              subtitle="Environmental Camera"
               status={visionStatus}
               statusState={visionPillState}
               primaryLabel="Camera state"
@@ -2648,7 +2782,60 @@ export default function Home() {
                 </div>
               )}
 
+              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-800/80 bg-black">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/80 px-3 py-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Live WebRTC Stream
+                  </div>
+                  <StatusPill
+                    label={
+                      visionStreamState === "connected"
+                        ? "Connected"
+                        : visionStreamState === "connecting"
+                          ? "Connecting"
+                          : visionStreamState === "error"
+                            ? "Stream error"
+                            : "Idle"
+                    }
+                    state={
+                      visionStreamState === "connected"
+                        ? "active"
+                        : visionStreamState === "connecting"
+                          ? "warn"
+                          : visionStreamState === "error"
+                            ? "bad"
+                            : "neutral"
+                    }
+                  />
+                </div>
+
+                <video
+                  ref={visionVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="aspect-video w-full bg-black object-contain"
+                />
+              </div>
+
               <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  onClick={startVisionStream}
+                  disabled={!vision?.online || visionStreamState === "connecting" || visionStreamState === "connected"}
+                  variant="primary"
+                  className="h-9"
+                >
+                  Connect stream
+                </Button>
+
+                <Button
+                  onClick={stopVisionStream}
+                  disabled={visionStreamState === "idle"}
+                  variant="secondary"
+                  className="h-9"
+                >
+                  Disconnect stream
+                </Button>
                 <Button
                   onClick={loadVision}
                   variant="secondary"
