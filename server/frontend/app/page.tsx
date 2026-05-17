@@ -113,6 +113,8 @@ type SystemState = {
   sprinkler?: SprinklerState;
   thermostat?: ThermostatState;
   weather?: WeatherState;
+  grass_condition?: GrassCondition | null;
+  environment?: EnvironmentState | null;
 };
 
 type VisionStatus = {
@@ -151,6 +153,18 @@ type GrassCondition = {
   time?: string;
   error?: string;
   detail?: string;
+};
+
+type EnvironmentState = {
+  recommendation?: string;
+  confidence?: string;
+  reason?: string;
+  inputs?: {
+    grass_score?: number;
+    dryness_index?: number;
+    rain_probability?: number;
+    temperature_f?: number | null;
+  };
 };
 
 type StatusState = "good" | "bad" | "warn" | "neutral" | "active";
@@ -3169,6 +3183,113 @@ export default function Home() {
                     Analyze lawn
                   </Button>
                 </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-cyan-400/15 bg-cyan-500/5 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-100">
+                      Environmental Recommendation
+                    </div>
+
+                    <div className="mt-1 text-xs text-slate-400">
+                      Orion environmental reasoning engine combining lawn condition and weather context
+                    </div>
+                  </div>
+
+                  <StatusPill
+                    label={
+                      system?.environment?.confidence
+                        ? formatMode(system.environment.confidence)
+                        : "Unknown"
+                    }
+                    state={
+                      system?.environment?.confidence === "high"
+                        ? "good"
+                        : system?.environment?.confidence === "medium"
+                          ? "warn"
+                          : "neutral"
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field
+                    label="Recommendation"
+                    value={formatMode(system?.environment?.recommendation)}
+                    state={
+                      system?.environment?.recommendation === "no_irrigation_needed"
+                        ? "good"
+                        : system?.environment?.recommendation === "monitor_lawn"
+                          ? "warn"
+                          : system?.environment?.recommendation === "delay_irrigation"
+                            ? "warn"
+                            : system?.environment?.recommendation === "consider_irrigation" ||
+                                system?.environment?.recommendation === "run_short_irrigation"
+                              ? "bad"
+                              : "neutral"
+                    }
+                  />
+
+                  <Field
+                    label="Confidence"
+                    value={formatMode(system?.environment?.confidence)}
+                  />
+
+                  <Field
+                    label="Grass score"
+                    value={
+                      Number.isFinite(Number(system?.environment?.inputs?.grass_score))
+                        ? `${Math.round(
+                            Number(system?.environment?.inputs?.grass_score) * 100
+                          )}`
+                        : "--"
+                    }
+                  />
+
+                  <Field
+                    label="Dryness"
+                    value={
+                      Number.isFinite(Number(system?.environment?.inputs?.dryness_index))
+                        ? Number(
+                            system?.environment?.inputs?.dryness_index
+                          ).toFixed(3)
+                        : "--"
+                    }
+                  />
+
+                  <Field
+                    label="Rain"
+                    value={
+                      Number.isFinite(Number(system?.environment?.inputs?.rain_probability))
+                        ? `${Math.round(
+                            Number(system?.environment?.inputs?.rain_probability) * 100
+                          )}%`
+                        : "--"
+                    }
+                    state={
+                      Number(system?.environment?.inputs?.rain_probability ?? 0) >= 0.7
+                        ? "warn"
+                        : "neutral"
+                    }
+                  />
+
+                  <Field
+                    label="Temperature"
+                    value={
+                      Number.isFinite(Number(system?.environment?.inputs?.temperature_f))
+                        ? `${Number(
+                            system?.environment?.inputs?.temperature_f
+                          ).toFixed(1)}°F`
+                        : "--"
+                    }
+                  />
+                </div>
+
+                <p className="mt-3 text-xs leading-5 text-slate-300">
+                  {system?.environment?.reason ||
+                    "No environmental recommendation available."}
+                </p>
               </div>
 
               {vision?.error && (
