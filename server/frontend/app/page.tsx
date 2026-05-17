@@ -1377,9 +1377,15 @@ export default function Home() {
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const visionVideoRef = useRef<HTMLVideoElement | null>(null);
   const visionPcRef = useRef<RTCPeerConnection | null>(null);
+  const visionAutoConnectAttemptedRef = useRef(false);
   const [visionStreamState, setVisionStreamState] = useState<
-    "idle" | "connecting" | "connected" | "error"
+    "idle" | "connecting" | "connected" | "reconnecting" | "error"
   >("idle");
+
+  const visionRecorderRef = useRef<MediaRecorder | null>(null);
+  const visionRecordedChunksRef = useRef<Blob[]>([]);
+  const visionRecordingSaveRef = useRef(true);
+  const [visionRecording, setVisionRecording] = useState(false);
 
 
   const decisionResultText = useMemo(() => {
@@ -2071,6 +2077,8 @@ export default function Home() {
   };
 
   const stopVisionStream = () => {
+    stopVisionRecording(true);
+
     const pc = visionPcRef.current;
 
     if (pc) {
@@ -2089,6 +2097,131 @@ export default function Home() {
     }
 
     setVisionStreamState("idle");
+  };
+
+  const chooseVisionRecorderOptions = (): MediaRecorderOptions | undefined => {
+    const candidates = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+    ];
+
+    for (const mimeType of candidates) {
+      if (
+        typeof MediaRecorder !== "undefined" &&
+        MediaRecorder.isTypeSupported(mimeType)
+      ) {
+        return {
+          mimeType,
+          videoBitsPerSecond: 8_000_000,
+        };
+      }
+    }
+
+    return undefined;
+  };
+
+  const saveVisionRecording = () => {
+    const chunks = visionRecordedChunksRef.current;
+
+    if (!chunks.length) return;
+
+    const recorder = visionRecorderRef.current;
+    const mimeType = recorder?.mimeType || "video/webm";
+
+    const blob = new Blob(chunks, { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `orion-vision-recording-${timestamp}.webm`;
+
+    document.body.appendChild(link);
+    link.click();
+
+    window.setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 0);
+  };
+
+  const startVisionRecording = () => {
+    if (visionRecording) return;
+
+    const stream = visionVideoRef.current?.srcObject;
+
+    if (!(stream instanceof MediaStream)) {
+      setControlResult({
+        ok: false,
+        error: "No active vision stream to record.",
+      });
+      return;
+    }
+
+    try {
+      const options = chooseVisionRecorderOptions();
+      const recorder = options
+        ? new MediaRecorder(stream, options)
+        : new MediaRecorder(stream);
+
+      visionRecorderRef.current = recorder;
+      visionRecordedChunksRef.current = [];
+      visionRecordingSaveRef.current = true;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          visionRecordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (visionRecordingSaveRef.current) {
+          saveVisionRecording();
+        }
+
+        visionRecorderRef.current = null;
+        setVisionRecording(false);
+      };
+
+      recorder.start(1000);
+      setVisionRecording(true);
+    } catch (err) {
+      setControlResult({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setVisionRecording(false);
+    }
+  };
+
+  const stopVisionRecording = (save = true) => {
+    const recorder = visionRecorderRef.current;
+
+    if (!recorder) {
+      setVisionRecording(false);
+      return;
+    }
+
+    visionRecordingSaveRef.current = save;
+
+    try {
+      if (recorder.state !== "inactive") {
+        recorder.stop();
+      }
+    } catch {
+      visionRecorderRef.current = null;
+      setVisionRecording(false);
+    }
+  };
+
+  const toggleVisionRecording = () => {
+    if (visionRecording) {
+      stopVisionRecording(true);
+      return;
+    }
+
+    startVisionRecording();
   };
 
   const startVisionStream = async () => {
@@ -2197,6 +2330,17 @@ export default function Home() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!vision?.online) return;
+    if (visionAutoConnectAttemptedRef.current) return;
+    if (visionPcRef.current) return;
+    if (visionStreamState !== "idle" && visionStreamState !== "error") return;
+
+    visionAutoConnectAttemptedRef.current = true;
+    startVisionStream();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vision?.online, visionStreamState]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -2732,7 +2876,96 @@ export default function Home() {
                 },
               ]}
             >
-              <div className="grid grid-cols-2 gap-3">
+              <div className="mt-1 overflow-hidden rounded-2xl border border-slate-800/80 bg-black">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/80 px-3 py-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Live WebRTC Stream
+                  </div>
+                  <StatusPill
+                    label={
+                      visionStreamState === "connected"
+                        ? "Connected"
+                        : visionStreamState === "connecting"
+                          ? "Connecting"
+                          : visionStreamState === "reconnecting"
+                            ? "Reconnecting"
+                            : visionStreamState === "error"
+                              ? "Stream error"
+                              : "Idle"
+                    }
+                    state={
+                      visionStreamState === "connected"
+                        ? "active"
+                        : visionStreamState === "connecting" ||
+                            visionStreamState === "reconnecting"
+                          ? "warn"
+                          : visionStreamState === "error"
+                            ? "bad"
+                            : "neutral"
+                    }
+                  />
+                </div>
+
+                <video
+                  ref={visionVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="aspect-video w-full bg-black object-contain"
+                />
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Button
+                  onClick={startVisionStream}
+                  disabled={
+                    !vision?.online ||
+                    visionStreamState === "connecting" ||
+                    visionStreamState === "connected"
+                  }
+                  variant="primary"
+                  className="h-9 w-full"
+                >
+                  {visionStreamState === "connected"
+                    ? "Connected"
+                    : visionStreamState === "connecting"
+                      ? "Connecting..."
+                      : visionStreamState === "error"
+                        ? "Reconnect"
+                        : "Connect"}
+                </Button>
+
+                <Button
+                  onClick={stopVisionStream}
+                  disabled={visionStreamState === "idle"}
+                  variant="secondary"
+                  className="h-9 w-full"
+                >
+                  Disconnect
+                </Button>
+
+                <Button
+                  onClick={toggleVisionRecording}
+                  disabled={visionStreamState !== "connected"}
+                  variant={visionRecording ? "danger" : "success"}
+                  className="h-9 w-full"
+                >
+                  {visionRecording ? "Stop rec" : "Record"}
+                </Button>
+
+                <Button
+                  onClick={() =>
+                    window.open(`${BACKEND_URL}/v1/vision/snapshot?t=${Date.now()}`, "_blank")
+                  }
+                  disabled={!vision?.online}
+                  variant="secondary"
+                  className="h-9 w-full"
+                >
+                  Snapshot
+                </Button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
                 <Field
                   label="Camera"
                   value={vision?.camera_online ? "Online" : "Offline"}
@@ -2740,8 +2973,8 @@ export default function Home() {
                 />
                 <Field
                   label="Recording"
-                  value={vision?.recording ? "Active" : "Idle"}
-                  state={vision?.recording ? "active" : "neutral"}
+                  value={visionRecording ? "Recording" : vision?.recording ? "Active" : "Idle"}
+                  state={visionRecording || vision?.recording ? "active" : "neutral"}
                 />
                 <Field
                   label="Lens"
@@ -2782,77 +3015,13 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-800/80 bg-black">
-                <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/80 px-3 py-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Live WebRTC Stream
-                  </div>
-                  <StatusPill
-                    label={
-                      visionStreamState === "connected"
-                        ? "Connected"
-                        : visionStreamState === "connecting"
-                          ? "Connecting"
-                          : visionStreamState === "error"
-                            ? "Stream error"
-                            : "Idle"
-                    }
-                    state={
-                      visionStreamState === "connected"
-                        ? "active"
-                        : visionStreamState === "connecting"
-                          ? "warn"
-                          : visionStreamState === "error"
-                            ? "bad"
-                            : "neutral"
-                    }
-                  />
-                </div>
-
-                <video
-                  ref={visionVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="aspect-video w-full bg-black object-contain"
-                />
-              </div>
-
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  onClick={startVisionStream}
-                  disabled={!vision?.online || visionStreamState === "connecting" || visionStreamState === "connected"}
-                  variant="primary"
-                  className="h-9"
-                >
-                  Connect stream
-                </Button>
-
-                <Button
-                  onClick={stopVisionStream}
-                  disabled={visionStreamState === "idle"}
-                  variant="secondary"
-                  className="h-9"
-                >
-                  Disconnect stream
-                </Button>
                 <Button
                   onClick={loadVision}
                   variant="secondary"
                   className="h-9"
                 >
                   Refresh
-                </Button>
-
-                <Button
-                  onClick={() =>
-                    window.open(`${BACKEND_URL}/v1/vision/snapshot?t=${Date.now()}`, "_blank")
-                  }
-                  disabled={!vision?.online}
-                  variant="secondary"
-                  className="h-9"
-                >
-                  Snapshot
                 </Button>
 
                 <Button
