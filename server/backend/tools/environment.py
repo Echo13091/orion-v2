@@ -182,10 +182,12 @@ def evaluate_environment(
     grass_condition: Dict[str, Any] | None,
     weather: Dict[str, Any] | None,
     sprinkler: Dict[str, Any] | None = None,
+    rain_detection: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     grass_condition = grass_condition or {}
     weather = weather or {}
     sprinkler = sprinkler or {}
+    rain_detection = rain_detection or {}
 
     grass_score = normalize_grass_score(grass_condition.get("score"))
     dryness_index = normalize_dryness(grass_condition.get("dryness_index"))
@@ -196,6 +198,11 @@ def evaluate_environment(
     humidity = safe_float(weather.get("humidity"))
 
     irrigation_context = summarize_irrigation_context(sprinkler)
+
+    camera_rain_detected = bool(rain_detection.get("rain_detected"))
+    camera_rain_confidence = str(rain_detection.get("confidence") or "unknown")
+    camera_wetness_score = normalize_dryness(rain_detection.get("wetness_score"))
+    camera_motion_score = normalize_dryness(rain_detection.get("motion_score"))
 
     lawn_need = classify_lawn_need(
         grass_score=grass_score,
@@ -246,17 +253,32 @@ def evaluate_environment(
     elif rain_probability >= 0.7:
         recommendation = "delay_irrigation"
         confidence = "high"
-        reason = (
-            "Rain probability is high. Delay irrigation and continue monitoring lawn condition."
-        )
+
+        if camera_rain_detected:
+            reason = (
+                "Rain probability is high and the environmental camera shows rain or wet-surface evidence. "
+                "Delay irrigation and continue monitoring lawn condition."
+            )
+        else:
+            reason = (
+                "Rain probability is high. Delay irrigation and continue monitoring lawn condition. "
+                "Camera rain evidence is not currently confirming rainfall."
+            )
 
     elif rain_probability >= 0.45 and lawn_need["need_level"] != "high":
         recommendation = "delay_irrigation"
-        confidence = "medium"
-        reason = (
-            "Rain is possible and lawn watering need is not high. "
-            "Delay irrigation and monitor whether rainfall improves lawn condition."
-        )
+        confidence = "high" if camera_rain_detected else "medium"
+
+        if camera_rain_detected:
+            reason = (
+                "Rain is possible and the environmental camera shows rain or wet-surface evidence. "
+                "Delay irrigation and monitor whether rainfall improves lawn condition."
+            )
+        else:
+            reason = (
+                "Rain is possible and lawn watering need is not high. "
+                "Delay irrigation and monitor whether rainfall improves lawn condition."
+            )
 
     # ----------------------------------------------------
     # Healthy / low need.
@@ -336,6 +358,11 @@ def evaluate_environment(
             "heat_stress": lawn_need["heat_stress"],
             "extreme_heat": lawn_need["extreme_heat"],
             "low_humidity": lawn_need["low_humidity"],
+            "camera_rain_detected": camera_rain_detected,
+            "camera_rain_confidence": camera_rain_confidence,
+            "camera_wetness_score": round(camera_wetness_score, 3),
+            "camera_motion_score": round(camera_motion_score, 3),
         },
+        "rain_detection": rain_detection,
         "irrigation": irrigation_context,
     }

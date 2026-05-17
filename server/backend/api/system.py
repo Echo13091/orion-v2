@@ -13,6 +13,7 @@ def register_system(app):
         sprinkler = state.get("sprinkler") or {}
 
         grass_condition = None
+        rain_detection = None
 
         try:
             import json
@@ -29,12 +30,29 @@ def register_system(app):
         except Exception:
             grass_condition = None
 
+        try:
+            import json
+            import urllib.request
+
+            with urllib.request.urlopen(
+                "http://localhost:5001/v1/vision/rain-detection",
+                timeout=2,
+            ) as response:
+                rain_detection = json.loads(
+                    response.read().decode("utf-8")
+                )
+
+        except Exception:
+            rain_detection = None
+
         state["grass_condition"] = grass_condition
+        state["rain_detection"] = rain_detection
 
         state["environment"] = evaluate_environment(
             grass_condition=grass_condition,
             weather=weather,
             sprinkler=sprinkler,
+            rain_detection=rain_detection,
         )
 
         return jsonify(state)

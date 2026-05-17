@@ -145,6 +145,24 @@ def register_vision(app):
                 detail=str(e),
             )
 
+    @app.route("/v1/vision/rain-detection", methods=["GET"])
+    def vision_rain_detection():
+        try:
+            payload = _read_json(f"{VISION_NODE_URL}/api/rain-detection")
+            return jsonify(payload)
+        except urllib.error.URLError as e:
+            return _json_error(
+                "Camera rain detection unavailable",
+                503,
+                detail=str(e),
+            )
+        except Exception as e:
+            return _json_error(
+                "Failed to analyze camera rain evidence",
+                500,
+                detail=str(e),
+            )
+
     @app.route("/v1/vision/snapshot", methods=["GET"])
     def vision_snapshot():
         try:
