@@ -1,27 +1,32 @@
 # Orion V2 — Distributed Edge Automation Platform
 
-Orion V2 is a distributed edge automation platform for real HVAC and irrigation hardware.
+Orion V2 is a local-first distributed edge automation platform for real HVAC, irrigation, and environmental vision hardware.
 
 The system runs on NVIDIA Jetson edge hardware and uses Docker Compose to orchestrate the main application services:
 
 - Next.js dashboard
 - Flask backend API
 - Mosquitto MQTT broker
-- AI-assisted monitoring and control loop
+- AI-assisted monitoring and recommendation loop
+- environmental vision node proxy
 
-Orion communicates with Raspberry Pi field controllers and ESP32 edge nodes using MQTT-based distributed messaging. The system monitors live thermostat data, relay states, controller heartbeats, weather conditions, fault states, and AI-assisted operational recommendations.
+Orion integrates with Raspberry Pi field controllers, ESP32 relay nodes, and a Raspberry Pi Zero 2 W environmental camera node using REST APIs, MQTT messaging, WebRTC video streaming, and distributed health monitoring.
 
-Unlike a simulated dashboard project, Orion interacts with physical hardware in real time.
-
-The goal of Orion is to build a practical local-first control platform that can observe hardware state, detect faults, recommend safe actions, and provide a clean operational dashboard for real-world automation.
+Unlike a simulated dashboard, Orion interacts with real physical systems and exposes live operational state, hardware faults, environmental context, and safe manual controls through one unified dashboard.
 
 ---
 
-## Quick Overview
+## Overview
 
-Orion V2 combines full-stack software, embedded systems, real-time telemetry, Dockerized deployment, and AI-assisted operational monitoring into one distributed control platform.
+Orion V2 combines full-stack software, embedded systems, real-time telemetry, Dockerized deployment, WebRTC streaming, and AI-assisted operational monitoring into a single edge automation platform.
 
-Current capabilities include:
+Current integrated subsystems:
+
+- HVAC controller
+- irrigation controller
+- environmental vision node
+
+Current platform capabilities:
 
 - Docker Compose deployment on NVIDIA Jetson
 - Next.js operational dashboard
@@ -30,7 +35,12 @@ Current capabilities include:
 - local AI-assisted monitoring loop
 - HVAC controller integration
 - sprinkler / irrigation controller integration
+- environmental camera integration
+- embedded WebRTC stream inside the Orion dashboard
+- browser recording and snapshot controls
+- IMX708 autofocus control
 - Raspberry Pi field-controller layer
+- Raspberry Pi Zero 2 W vision-node layer
 - ESP32 relay-node layer
 - live telemetry and heartbeat monitoring
 - weather-aware irrigation decisions
@@ -43,25 +53,30 @@ Orion is designed as a practical full-stack, embedded, IoT, and edge automation 
 
 ---
 
-## What This Project Demonstrates
+## What Orion Demonstrates
 
-Orion V2 demonstrates:
+Orion V2 demonstrates engineering across multiple layers:
 
 - distributed system architecture
 - full-stack application development
 - real-time telemetry and monitoring
 - MQTT-based device communication
+- REST API integration
+- WebRTC video streaming
 - Raspberry Pi field-controller integration
-- ESP32 embedded firmware integration
+- Raspberry Pi Zero 2 W camera-node integration
+- IMX708 camera integration
+- ESP32 embedded node integration
 - HVAC and irrigation automation
+- environmental monitoring
 - Dockerized edge deployment
 - container orchestration with Docker Compose
 - fault detection and operational visibility
 - AI-assisted operational recommendations
 - NVIDIA Jetson edge deployment
-- safety-focused control logic and fail-safe behavior
-- system reliability and debugging
+- safety-focused control logic
 - hardware/software integration
+- Linux and systemd service deployment
 
 ---
 
@@ -77,7 +92,7 @@ Orion evaluates live telemetry, weather conditions, and device state to provide 
 
 ![Orion Device Dashboard](docs/screenshots/orion-device-dashboard.jpg)
 
-The dashboard displays live HVAC state, irrigation scheduling, device telemetry, weather data, and distributed system health.
+The dashboard displays HVAC state, irrigation scheduling, environmental camera status, weather data, and distributed system health.
 
 ### Healthy Distributed System State
 
@@ -89,7 +104,7 @@ The dashboard displays healthy controller and node communication across the dist
 
 ![Distributed fault detection](docs/screenshots/fault-dashboard-node-fault.jpeg)
 
-For validation, a thermostat field controller was intentionally powered down to confirm Orion detected the offline device, surfaced the fault condition, and preserved visibility into the remaining system state.
+A thermostat field controller was intentionally powered down to validate Orion's ability to detect an offline device, surface the fault condition, and preserve visibility into the remaining system state.
 
 ---
 
@@ -103,15 +118,17 @@ For validation, a thermostat field controller was intentionally powered down to 
 │  ├── Next.js Dashboard                                   │
 │  ├── Flask Backend API                                   │
 │  ├── Mosquitto MQTT Broker                               │
-│  └── AI-Assisted Monitoring / Control Loop               │
+│  └── AI-Assisted Monitoring / Recommendation Loop        │
 └───────────────────────────┬──────────────────────────────┘
                             │
-                       REST / MQTT
+              REST / MQTT / WebRTC Signaling
                             │
 ┌───────────────────────────▼──────────────────────────────┐
 │              Raspberry Pi Field Controllers              │
-│        HVAC Service + Irrigation Service                 │
-│        Local Runtime State + Safety Logic                │
+│                                                          │
+│  ├── HVAC Controller Service                             │
+│  ├── Irrigation Controller Service                       │
+│  └── Local Runtime State + Safety Logic                  │
 └───────────────────────────┬──────────────────────────────┘
                             │
                            MQTT
@@ -125,11 +142,193 @@ For validation, a thermostat field controller was intentionally powered down to 
 │                    Real Equipment                        │
 │              HVAC Hardware + Irrigation Hardware         │
 └──────────────────────────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────┐
+│             Raspberry Pi Zero 2 W Vision Node            │
+│                                                          │
+│  ├── IMX708 Environmental Camera                         │
+│  ├── Picamera2                                           │
+│  ├── WebRTC Stream Service                               │
+│  ├── Autofocus Control                                   │
+│  ├── Snapshot Endpoint                                   │
+│  ├── Browser Recording Support                           │
+│  ├── Health / Fault Status API                           │
+│  └── systemd Recovery                                    │
+└───────────────────────────┬──────────────────────────────┘
+                            │
+                   REST + WebRTC Signaling
+                            │
+┌───────────────────────────▼──────────────────────────────┐
+│                  Orion Dashboard                         │
+│       Embedded Environmental Camera Stream + Telemetry   │
+└──────────────────────────────────────────────────────────┘
 ```
 
-Orion separates high-level monitoring and orchestration from field-level hardware control.
+Orion separates high-level monitoring and orchestration from field-level hardware execution.
 
-The Jetson hosts the containerized application platform. Raspberry Pi field controllers manage local device behavior and safety logic. ESP32 nodes handle relay-level control, telemetry, heartbeat publishing, and failsafe behavior.
+The Jetson hosts the main application layer. Raspberry Pi field controllers manage device behavior and safety logic close to the equipment. ESP32 nodes handle relay-level control, telemetry, heartbeat publishing, and failsafe behavior. The Raspberry Pi Zero 2 W vision node provides environmental video and camera telemetry as a first-class subsystem.
+
+---
+
+## Integrated Subsystems
+
+Orion currently integrates three major hardware-facing subsystems:
+
+```txt
+HVAC Node
+Irrigation Node
+Environmental Vision Node
+```
+
+Each subsystem exposes operational state, health information, and fault visibility to the Orion dashboard.
+
+### HVAC Node
+
+The HVAC controller provides:
+
+- live temperature telemetry
+- humidity telemetry
+- cooling / heating state
+- fan state
+- relay feedback
+- sensor status
+- heartbeat monitoring
+- fault detection
+- safety timing logic
+
+### Irrigation Node
+
+The irrigation controller provides:
+
+- zone scheduling
+- manual zone control
+- active run status
+- weather-aware skip logic
+- local schedule ownership
+- ESP32 relay-node integration
+- heartbeat monitoring
+- fault visibility
+
+### Environmental Vision Node
+
+The environmental vision node provides:
+
+- live WebRTC video stream
+- embedded Orion dashboard viewer
+- auto-connect stream behavior
+- browser recording controls
+- snapshot support
+- IMX708 autofocus control
+- lens position telemetry
+- frame freshness tracking
+- online/offline state
+- fault visibility
+- systemd-managed recovery on the Pi Zero 2 W
+
+---
+
+## Orion Vision Node
+
+The Orion Vision Node is an environmental camera subsystem built around a Raspberry Pi Zero 2 W and an IMX708 camera module.
+
+The node runs independently as a systemd-managed service on the Pi Zero 2 W and exposes local APIs for status, focus control, snapshots, camera restart, and WebRTC stream negotiation.
+
+The Jetson-hosted Orion backend proxies the vision node through `/v1/vision/*` API routes, allowing the main Orion dashboard to display camera health, telemetry, snapshots, focus controls, and the embedded WebRTC stream.
+
+### Current Vision Node Features
+
+- Raspberry Pi Zero 2 W camera node
+- IMX708 camera support
+- Picamera2 camera stack
+- live WebRTC video stream
+- embedded stream inside Orion dashboard
+- auto-connect stream behavior
+- browser-side recording
+- snapshot capture
+- autofocus once command
+- continuous autofocus support
+- camera restart command
+- camera health telemetry
+- stream client count
+- frame freshness tracking
+- lens position reporting
+- online/offline state
+- fault visibility
+- systemd service recovery
+
+### Vision Node Dashboard Fields
+
+The Orion dashboard displays:
+
+- camera online state
+- stream readiness
+- current FPS
+- stream resolution
+- focus mode
+- connected clients
+- recording state
+- lens position
+- last-frame freshness
+- fault status
+- node identifier
+- embedded live WebRTC stream
+
+### Orion Backend Vision Routes
+
+```txt
+GET  /v1/vision/status
+GET  /v1/vision/snapshot
+POST /v1/vision/focus
+POST /v1/vision/restart-camera
+POST /v1/vision/offer
+```
+
+### Vision Node Local Routes
+
+```txt
+GET  /api/status
+GET  /api/state
+GET  /api/settings
+POST /api/settings
+POST /api/camera/focus
+POST /api/camera/restart
+GET  /api/snapshot
+POST /offer
+```
+
+### Vision Node Environment Variables
+
+The Orion backend uses the following Docker environment variables to locate the vision node:
+
+```txt
+VISION_NODE_URL=http://192.168.7.238:5000
+VISION_TIMEOUT=3.0
+```
+
+Example Docker Compose backend environment section:
+
+```yaml
+environment:
+  VISION_NODE_URL: http://192.168.7.238:5000
+  VISION_TIMEOUT: "3.0"
+```
+
+### Future Vision AI Direction
+
+The vision node is intentionally lightweight. It handles camera capture, WebRTC streaming, focus control, status, and snapshots. Heavier analysis is intended to run on the Jetson.
+
+Planned future capabilities include:
+
+- bird detection
+- species recognition
+- auto tracking
+- digital zoom
+- lawn / grass condition monitoring
+- irrigation verification through snapshots
+- environmental event logging
+- AI-assisted outdoor condition summaries
+- integration with watering restrictions and weather conditions
 
 ---
 
@@ -175,7 +374,7 @@ docker compose restart
 docker compose down
 ```
 
-This deployment separates the main Orion platform services from the field-controller layer. The Jetson runs the dashboard, backend, AI monitoring loop, and MQTT broker, while Raspberry Pi controllers and ESP32 nodes continue handling hardware-facing logic close to the equipment.
+The Jetson runs the dashboard, backend, AI monitoring loop, and MQTT broker. Raspberry Pi controllers, ESP32 nodes, and the Pi Zero vision node continue handling hardware-facing logic close to the equipment.
 
 This makes Orion easier to restart, reproduce, deploy, and document compared to running each service manually.
 
@@ -183,9 +382,9 @@ This makes Orion easier to restart, reproduce, deploy, and document compared to 
 
 ## Engineering Summary
 
-Orion V2 demonstrates the ability to design and build a complete distributed automation platform that combines frontend development, backend APIs, embedded systems, hardware control, AI-assisted decision logic, Dockerized deployment, and real-world fault handling.
+Orion V2 demonstrates the ability to design and build a complete distributed automation platform that combines frontend development, backend APIs, embedded systems, hardware control, environmental vision, WebRTC streaming, AI-assisted decision logic, Dockerized deployment, and real-world fault handling.
 
-This project goes beyond a normal dashboard demo. Orion monitors real hardware, tracks live device state, uses AI-assisted recommendations, detects offline nodes, handles weather-aware irrigation decisions, and separates manual control from automatic execution.
+This project goes beyond a normal dashboard demo. Orion monitors real hardware, tracks live device state, uses AI-assisted recommendations, detects offline nodes, handles weather-aware irrigation decisions, displays environmental camera state, and separates manual control from automatic execution.
 
 Key engineering areas:
 
@@ -195,11 +394,15 @@ Key engineering areas:
 - React / Next.js frontend development
 - TypeScript dashboard development
 - REST API integration
+- WebRTC stream integration
+- browser recording support
 - local AI / LLM integration
 - Raspberry Pi field-controller design
+- Raspberry Pi Zero 2 W camera-node design
 - ESP32 embedded node integration
 - MQTT-based device communication
 - hardware relay control
+- camera hardware integration
 - real-time telemetry
 - system health monitoring
 - fault detection
@@ -218,12 +421,12 @@ Key engineering areas:
 Orion V2 was built to answer a practical engineering question:
 
 ```txt
-Can a local edge automation platform monitor real devices, understand system state, detect hardware problems, and recommend safer actions before controlling equipment?
+Can a local edge automation platform monitor real devices, understand system state, detect hardware problems, stream environmental context, and recommend safer actions before controlling equipment?
 ```
 
 Orion is designed around that goal.
 
-It does not blindly execute commands. It monitors system state, detects faults, displays recommendations, and gives the user visibility into what the automation layer is doing.
+It does not blindly execute commands. It monitors system state, detects faults, displays recommendations, streams environmental camera data, and gives the user visibility into what the automation layer is doing.
 
 ---
 
@@ -235,6 +438,8 @@ Orion V2 is different because it combines:
 
 - real hardware control
 - live device status
+- environmental vision
+- embedded WebRTC camera streaming
 - AI-assisted recommendations
 - manual and automatic execution modes
 - fault-aware behavior
@@ -266,9 +471,10 @@ It includes:
 - session and memory handling
 - global system state
 - device status aggregation
+- environmental camera proxy APIs
 - weather-aware automation logic
 
-The dashboard provides a live view of system health, device state, automation recommendations, and manual controls.
+The dashboard provides a live view of system health, device state, environmental camera stream, automation recommendations, and manual controls.
 
 ### Orion Backend
 
@@ -277,10 +483,11 @@ The backend is responsible for:
 - exposing API endpoints
 - collecting system state
 - routing device commands
+- proxying vision-node status and WebRTC offers
 - running AI-assisted decision logic
 - storing persistent memory/state
 - tracking system health
-- coordinating HVAC and sprinkler integrations
+- coordinating HVAC, sprinkler, and vision integrations
 - reporting faults to the dashboard
 - running the background monitoring loop
 
@@ -293,6 +500,9 @@ The frontend is responsible for:
 - showing AI recommendations
 - showing HVAC status
 - showing sprinkler status
+- showing environmental camera status
+- embedding the WebRTC camera stream
+- providing recording and snapshot controls
 - providing manual control inputs
 - displaying saved chat sessions
 - exposing the assistant interface
@@ -329,6 +539,20 @@ Current field controllers include:
 - HVAC controller
 - irrigation controller
 
+### Raspberry Pi Zero 2 W Vision Node
+
+The Raspberry Pi Zero 2 W vision node is responsible for:
+
+- running the environmental camera service
+- controlling the IMX708 camera
+- managing WebRTC stream output
+- exposing local camera APIs
+- reporting live camera state
+- handling autofocus commands
+- serving snapshots
+- supporting browser recording through the dashboard
+- recovering through systemd after reboot or service failure
+
 ### ESP32 Edge Nodes
 
 The ESP32 nodes are responsible for:
@@ -345,11 +569,13 @@ The ESP32 nodes are responsible for:
 
 ## Field Controller Independence
 
-HVAC and irrigation controllers are designed to run independently on the Raspberry Pi.
+HVAC and irrigation controllers are designed to run independently on Raspberry Pi hardware.
 
 Orion provides centralized monitoring, AI-assisted recommendations, and operator control, but each field controller maintains its own local runtime state, scheduling, safety logic, and fail-safe behavior if the central application server is unavailable.
 
 This separation keeps hardware execution close to the equipment and prevents the dashboard or AI layer from becoming a single point of failure.
+
+The environmental vision node follows the same distributed philosophy. Camera capture and stream production run locally on the Pi Zero 2 W, while Orion provides centralized visibility, control, and future AI processing.
 
 ---
 
@@ -360,23 +586,39 @@ Orion V2 is designed around this distributed hardware model:
 ```txt
 NVIDIA Jetson Application Server
         ↓
-Raspberry Pi Field Controller
+Raspberry Pi Field Controllers
         ↓
-ESP32 Node
+ESP32 Nodes
         ↓
-Relay Board / Sensors
+Relay Boards / Sensors
         ↓
 Real Equipment
+```
+
+Environmental vision layer:
+
+```txt
+NVIDIA Jetson Application Server
+        ↓
+Raspberry Pi Zero 2 W Vision Node
+        ↓
+IMX708 Camera Module
+        ↓
+Environmental Camera Stream
 ```
 
 Current hardware integrations include:
 
 - HVAC controller
 - sprinkler / irrigation controller
+- environmental vision node
 - Raspberry Pi field-controller layer
+- Raspberry Pi Zero 2 W camera-node layer
 - ESP32 relay-node layer
 - local network communication
 - MQTT messaging
+- REST API integration
+- WebRTC video streaming
 - relay feedback / heartbeat status
 
 ---
@@ -390,6 +632,8 @@ Orion provides a live operational dashboard displaying:
 - weather conditions
 - HVAC state
 - irrigation schedule
+- environmental camera stream
+- vision node health
 - system health
 - CPU / memory / GPU monitoring
 - automation mode
@@ -402,13 +646,14 @@ Orion provides a live operational dashboard displaying:
 
 ### Distributed Device Communication
 
-The platform uses MQTT messaging between:
+The platform uses MQTT messaging, REST APIs, and WebRTC signaling between:
 
 - NVIDIA Jetson application server
 - Raspberry Pi field controllers
+- Raspberry Pi Zero 2 W environmental camera node
 - ESP32 edge nodes
 
-This allows Orion to distribute control logic, telemetry, and hardware state across multiple independent devices.
+This allows Orion to distribute control logic, telemetry, environmental context, and hardware state across multiple independent devices.
 
 ### AI-Assisted Recommendations
 
@@ -443,7 +688,7 @@ This allows Orion to recommend actions while still giving the user control over 
 
 ### Device Health Monitoring
 
-Orion monitors connected field controllers and device nodes.
+Orion monitors connected field controllers, device nodes, and the environmental camera node.
 
 Tracked states may include:
 
@@ -453,6 +698,9 @@ Tracked states may include:
 - HVAC mode
 - relay feedback
 - sensor status
+- camera stream status
+- frame freshness
+- lens position
 - controller health
 - fault state
 - stale data conditions
@@ -468,9 +716,9 @@ Example fault state:
 ```json
 {
   "fault": true,
-  "source": "sprinkler",
-  "message": "ESP32 sprinkler node offline",
-  "recommended_action": "Investigate fault before running automation"
+  "source": "vision",
+  "message": "Environmental camera node unreachable",
+  "recommended_action": "Check node power, Wi-Fi, or service status"
 }
 ```
 
@@ -489,6 +737,22 @@ No sprinkler action needed
 ```
 
 This helps prevent unnecessary watering and demonstrates state-aware automation logic.
+
+### Environmental Vision
+
+Orion can display a live environmental camera stream directly in the dashboard.
+
+Current environmental vision capabilities include:
+
+- live WebRTC stream
+- auto-connected dashboard viewer
+- browser recording
+- snapshots
+- autofocus controls
+- camera health state
+- fault visibility
+
+This adds visual environmental context to the same platform that already monitors HVAC, irrigation, weather, and hardware state.
 
 ---
 
@@ -560,6 +824,35 @@ Sprinkler state may include:
 
 ---
 
+## Environmental Vision Automation
+
+The environmental vision node currently focuses on live visibility, recording, snapshots, and telemetry.
+
+Current supported behavior:
+
+- stream environmental camera video into Orion
+- show camera online/offline state
+- expose frame freshness
+- report stream client count
+- display focus mode and lens position
+- trigger autofocus once from the dashboard
+- restart the camera service path from Orion
+- record the embedded browser stream
+- capture snapshots through the Orion backend
+
+Planned future behavior:
+
+- detect birds or motion events
+- classify bird species
+- auto-track and digitally zoom on subjects
+- inspect grass condition visually
+- compare lawn condition with weather and irrigation state
+- support irrigation verification after watering
+- combine camera context with water restrictions and weather logic
+- generate AI-assisted environmental summaries
+
+---
+
 ## Fault Detection and System Visibility
 
 Orion includes fault-aware monitoring for distributed field devices.
@@ -569,6 +862,7 @@ The platform can:
 - detect offline devices
 - surface node-level faults
 - report relay mismatches
+- report camera-node reachability failures
 - display controller health state
 - preserve visibility during partial system failures
 - support safer troubleshooting and recovery
@@ -594,6 +888,8 @@ Example behaviors include:
 
 Automation can run in manual approval mode or auto-execute mode depending on safety settings.
 
+The environmental vision layer expands the future AI context available to Orion, allowing the Jetson to eventually analyze outdoor conditions, bird activity, lawn state, irrigation effects, and environmental changes.
+
 ---
 
 ## Reliability Improvements
@@ -602,6 +898,10 @@ Recent reliability work included:
 
 - Docker Compose deployment support for the main Orion platform
 - containerized frontend, backend, and MQTT broker
+- integrated Orion Vision Node environmental camera
+- embedded WebRTC stream in the Orion dashboard
+- browser recording and snapshot controls
+- auto-connect vision stream behavior
 - refactored the project into a cleaner public repository structure
 - fixed real sprinkler schedule synchronization between Orion and the Raspberry Pi controller
 - added safer HVAC state handling so relay feedback cannot incorrectly re-command equipment
@@ -623,7 +923,9 @@ Key reliability concepts include:
 - distributed architecture
 - runtime state persistence
 - Dockerized application services
+- systemd-managed field services
 - fault visibility
+- camera-node reachability checks
 - compressor lockout protection
 - minimum equipment on/off timers
 - fan post-run handling
@@ -648,7 +950,7 @@ Important safety goals include:
 
 The Raspberry Pi field controllers continue operating locally even if the Jetson application layer becomes unavailable.
 
-This prevents the dashboard or AI orchestration layer from becoming a single point of failure.
+The environmental camera node also runs independently as a systemd service so camera visibility can recover automatically after node reboot or service failure.
 
 ---
 
@@ -660,6 +962,7 @@ This prevents the dashboard or AI orchestration layer from becoming a single poi
 - Flask
 - REST APIs
 - MQTT
+- WebRTC offer proxying
 - local AI integration
 - runtime state management
 - device control routing
@@ -672,6 +975,8 @@ This prevents the dashboard or AI orchestration layer from becoming a single poi
 - Next.js
 - TypeScript
 - real-time telemetry polling
+- embedded WebRTC viewer
+- browser recording controls
 - component-based UI architecture
 - assistant interface
 - saved chat display
@@ -685,17 +990,21 @@ This prevents the dashboard or AI orchestration layer from becoming a single poi
 - deterministic safety rules
 - explainable decision reasons
 - automation state loop
+- future environmental image analysis
 
 ### Hardware and Infrastructure
 
 - NVIDIA Jetson
 - Raspberry Pi 4
+- Raspberry Pi Zero 2 W
+- IMX708 camera module
 - ESP32
 - Linux
 - MQTT messaging
 - relay-control hardware
 - HVAC equipment integration
 - irrigation hardware integration
+- environmental camera integration
 - local network deployment
 
 ### Deployment / Infrastructure
@@ -707,6 +1016,7 @@ This prevents the dashboard or AI orchestration layer from becoming a single poi
 - Linux networking
 - containerized backend/frontend services
 - systemd-managed field-controller services
+- systemd-managed camera-node service
 - local network deployment
 
 ---
@@ -716,7 +1026,19 @@ This prevents the dashboard or AI orchestration layer from becoming a single poi
 ```txt
 server/
 ├── backend/
+│   ├── api/
+│   │   ├── system.py
+│   │   ├── control.py
+│   │   ├── chat.py
+│   │   ├── sessions.py
+│   │   └── vision.py
+│   ├── ai/
+│   ├── core/
+│   ├── tools/
+│   └── app.py
 └── frontend/
+    └── app/
+        └── page.tsx
 
 field-controller/
 ├── hvac-controller/
@@ -738,7 +1060,7 @@ docker-compose.yml
 
 ## Backend API Examples
 
-Orion exposes API routes for system status, sessions, chat, and device control.
+Orion exposes API routes for system status, sessions, chat, device control, and environmental vision.
 
 Example system endpoint:
 
@@ -767,7 +1089,17 @@ POST /v1/control/thermostat/mode
 POST /v1/control/thermostat/fan
 ```
 
-These endpoints allow the dashboard, assistant, and automation logic to interact with real device controllers.
+Example vision endpoints:
+
+```txt
+GET  /v1/vision/status
+GET  /v1/vision/snapshot
+POST /v1/vision/focus
+POST /v1/vision/restart-camera
+POST /v1/vision/offer
+```
+
+These endpoints allow the dashboard, assistant, and automation logic to interact with real device controllers and the environmental camera node.
 
 ---
 
@@ -795,6 +1127,29 @@ These endpoints allow the dashboard, assistant, and automation logic to interact
     "current_temp": 76.6,
     "setpoint": 72
   }
+}
+```
+
+---
+
+## Example Vision Status Payload
+
+```json
+{
+  "ok": true,
+  "online": true,
+  "node_url": "http://192.168.7.238:5000",
+  "node_id": "vision_node_1",
+  "node_name": "Orion Vision Node",
+  "camera_online": true,
+  "streaming_clients": 1,
+  "recording": false,
+  "fps": 13.7,
+  "resolution": "1280x720",
+  "focus_mode": "auto_once",
+  "lens_position": 1.09,
+  "last_frame_age": 0.03,
+  "fault": false
 }
 ```
 
@@ -858,6 +1213,7 @@ Example use cases:
 - classify system state
 - produce structured automation decisions
 - answer questions through the dashboard assistant
+- future environmental camera event summaries
 
 ---
 
@@ -873,6 +1229,8 @@ Read system state
 Read device telemetry
         ↓
 Check weather / hardware status
+        ↓
+Check vision node status
         ↓
 Apply deterministic safety checks
         ↓
@@ -913,6 +1271,12 @@ Example system health prompt:
 
 ```txt
 Check home system health
+```
+
+Example vision interaction:
+
+```txt
+Open Orion Vision Node and view the environmental camera stream.
 ```
 
 ---
@@ -1004,7 +1368,7 @@ Backend:  http://<JETSON-IP>:5001
 MQTT:     <JETSON-IP>:1883
 ```
 
-The Docker deployment is intended for the main Jetson-hosted platform services. Raspberry Pi field controllers and ESP32 nodes remain hardware-facing components that communicate with the main platform over the local network.
+The Docker deployment is intended for the main Jetson-hosted platform services. Raspberry Pi field controllers, ESP32 nodes, and the Pi Zero vision node remain hardware-facing components that communicate with the main platform over the local network.
 
 ---
 
@@ -1014,11 +1378,14 @@ Example environment variables:
 
 ```txt
 ORION_BACKEND_URL=http://localhost:5001
+NEXT_PUBLIC_BACKEND_URL=http://<JETSON-IP>:5001
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=mistral
 WEATHER_LOCATION=Brandon,FL
 MQTT_HOST=localhost
 MQTT_PORT=1883
+VISION_NODE_URL=http://192.168.7.238:5000
+VISION_TIMEOUT=3.0
 ```
 
 Actual variables may vary depending on local, Docker, Jetson, or field-controller deployment.
@@ -1048,6 +1415,34 @@ Each field controller owns:
 - fail-safe behavior
 
 This architecture keeps hardware execution close to the equipment while Orion provides centralized monitoring and operational visibility.
+
+---
+
+## Vision Node Deployment Notes
+
+The Orion Vision Node currently runs on a Raspberry Pi Zero 2 W using a systemd service.
+
+Example role:
+
+```txt
+Raspberry Pi Zero 2 W
+        ↓
+Runs Orion Vision Node service
+        ↓
+Captures IMX708 camera stream
+        ↓
+Serves WebRTC stream + status API
+        ↓
+Orion backend proxies stream/status into dashboard
+```
+
+Recommended operational notes:
+
+- reserve the Pi Zero IP address in the router
+- keep the vision node on the same LAN as the Jetson
+- use systemd so the camera node starts after reboot
+- keep AI processing on the Jetson rather than the Pi Zero
+- use the Pi Zero as a lightweight camera and telemetry node
 
 ---
 
@@ -1087,6 +1482,7 @@ Containerized services include:
 - backend API
 - MQTT broker
 - AI-assisted monitoring loop
+- vision-node backend proxy
 
 ### Field Controller Deployment
 
@@ -1094,11 +1490,18 @@ The Raspberry Pi field controllers are designed to run independently using syste
 
 This keeps hardware-facing logic close to the equipment while the Jetson provides centralized monitoring, AI-assisted recommendations, and dashboard visibility.
 
+### Vision Node Deployment
+
+The environmental vision node runs independently on Raspberry Pi Zero 2 W using a systemd-managed service.
+
+This keeps camera capture and stream generation local to the camera hardware while Orion handles dashboard integration, recording controls, snapshots, and future AI processing.
+
 Example deployment options:
 
 - Windows PC for development
 - NVIDIA Jetson for the main edge application server
 - Raspberry Pi for field-controller services
+- Raspberry Pi Zero 2 W for environmental vision
 - ESP32 nodes for relay control
 - local network with MQTT broker
 - systemd services for long-running controller processes
@@ -1119,6 +1522,7 @@ Benefits of edge deployment include:
 - always-on dashboard/backend host
 - containerized service deployment
 - stronger edge-compute deployment model
+- centralized supervisor for distributed field nodes
 
 Example edge deployment role:
 
@@ -1131,6 +1535,7 @@ Runs Orion frontend
 Runs Mosquitto MQTT broker
 Runs AI-assisted monitoring loop
 Monitors Raspberry Pi field controllers
+Monitors Pi Zero environmental camera node
 Receives MQTT/device telemetry
 Displays dashboard and AI recommendations
 ```
@@ -1144,18 +1549,21 @@ Orion V2 demonstrates the ability to build a complete connected system across mu
 - frontend dashboard
 - backend API
 - AI-assisted automation
+- WebRTC video integration
 - Raspberry Pi field controllers
+- Raspberry Pi Zero camera node
 - ESP32 hardware nodes
 - MQTT communication
 - Docker Compose deployment
 - device telemetry
+- environmental camera telemetry
 - relay control
 - persistent state
 - fault handling
 - safety-aware decision logic
 - local edge deployment
 
-This makes the project relevant to full-stack development, IoT engineering, embedded systems, automation, edge AI, backend API development, and control-system integration.
+This makes the project relevant to full-stack development, IoT engineering, embedded systems, automation, edge AI, backend API development, computer vision infrastructure, and control-system integration.
 
 ---
 
@@ -1168,10 +1576,13 @@ Planned and current reliability goals include:
 - heartbeat checks
 - stale telemetry detection
 - field-node offline detection
+- vision-node offline detection
 - relay feedback validation
+- frame freshness monitoring
 - fault history
 - automatic recovery attempts
 - systemd service recovery for field controllers
+- systemd service recovery for the vision node
 - safe manual override
 - deterministic safety checks before execution
 
@@ -1193,9 +1604,15 @@ Working features:
 - autonomous monitoring state
 - HVAC integration support
 - sprinkler integration support
+- environmental vision node integration
+- embedded WebRTC camera stream
+- browser recording for vision stream
+- snapshot support
+- autofocus control
 - weather-aware irrigation logic
 - fault state display
 - Raspberry Pi field-controller integration
+- Raspberry Pi Zero 2 W camera-node integration
 - ESP32 node integration support
 - local LLM support
 - Jetson edge deployment support
@@ -1207,6 +1624,7 @@ In progress / planned:
 - more detailed event history
 - expanded MQTT topic documentation
 - improved controller reconciliation
+- cached vision-node status optimization
 - persistent Docker volumes
 - MQTT authentication
 - better deployment documentation
@@ -1215,6 +1633,7 @@ In progress / planned:
 - additional screenshots and demo clips
 - architecture diagrams
 - hardware simulation mode
+- Jetson AI vision analysis
 
 ---
 
@@ -1227,6 +1646,14 @@ Planned improvements include:
 - improved AI decision audit trail
 - command acknowledgment tracking
 - controller heartbeat dashboard
+- cached vision-node status endpoint
+- AI-assisted camera event summaries
+- bird detection
+- bird species recognition
+- auto tracking and digital zoom
+- grass condition monitoring
+- watering restriction awareness
+- irrigation verification from environmental snapshots
 - automated recovery workflows
 - stronger weather integration
 - mobile dashboard polish
@@ -1245,9 +1672,9 @@ Planned improvements include:
 
 ## Where Orion V2 Can Grow
 
-Orion V2 is currently focused on HVAC and irrigation control, but the architecture is designed to expand into a broader edge automation platform.
+Orion V2 is currently focused on HVAC, irrigation, and environmental vision, but the architecture is designed to expand into a broader edge automation platform.
 
-The same distributed pattern — NVIDIA Jetson application layer, Raspberry Pi field controllers, ESP32 edge nodes, MQTT messaging, real-time telemetry, fault tracking, and AI-assisted operational recommendations — can support additional real-world systems such as:
+The same distributed pattern — NVIDIA Jetson application layer, Raspberry Pi field controllers, Raspberry Pi camera nodes, ESP32 edge nodes, MQTT messaging, REST APIs, WebRTC streaming, real-time telemetry, fault tracking, and AI-assisted operational recommendations — can support additional real-world systems such as:
 
 - environmental monitoring
 - lighting control
@@ -1257,10 +1684,12 @@ The same distributed pattern — NVIDIA Jetson application layer, Raspberry Pi f
 - distributed equipment supervision
 - predictive maintenance workflows
 - remote edge-device coordination
+- wildlife monitoring
+- lawn and irrigation intelligence
 
 The long-term goal is to evolve Orion into a scalable edge AI and industrial IoT platform capable of monitoring, coordinating, and automating multiple physical systems from a unified operational dashboard.
 
-The platform is intentionally modular so additional field controllers, edge nodes, telemetry pipelines, and automation services can be integrated without redesigning the overall system architecture.
+The platform is intentionally modular so additional field controllers, edge nodes, camera nodes, telemetry pipelines, and automation services can be integrated without redesigning the overall system architecture.
 
 ---
 
@@ -1268,9 +1697,9 @@ The platform is intentionally modular so additional field controllers, edge node
 
 Orion V2 started as a practical home automation project and grew into a distributed edge automation platform.
 
-The system connects real HVAC and irrigation hardware to a central dashboard, adds field-controller separation, integrates ESP32 relay nodes, and layers AI-assisted recommendations on top of deterministic safety logic.
+The system connects real HVAC, irrigation, and environmental camera hardware to a central dashboard, adds field-controller separation, integrates ESP32 relay nodes, embeds a WebRTC vision node, and layers AI-assisted recommendations on top of deterministic safety logic.
 
-The project demonstrates practical engineering across software, hardware, networking, automation, and system design.
+The project demonstrates practical engineering across software, hardware, networking, automation, video streaming, AI-assisted monitoring, and system design.
 
 ---
 
@@ -1280,7 +1709,7 @@ Recommended GitHub project structure:
 
 ```txt
 orion-v2
-Main platform, dashboard, backend API, AI supervisor
+Main platform, dashboard, backend API, AI supervisor, environmental vision integration
 
 raspberry-pi-esp32-hvac-controller
 HVAC field-controller layer
@@ -1298,9 +1727,11 @@ HVAC field controller
         ↓
 Sprinkler field controller
         ↓
+Vision node
+        ↓
 ESP32 hardware nodes
         ↓
-Real equipment
+Real equipment and environmental camera hardware
 ```
 
 ---
@@ -1312,11 +1743,13 @@ The current deployment is intended for local network / development use.
 Important security considerations before exposing Orion outside a private LAN:
 
 - do not expose MQTT publicly without authentication
+- do not expose the vision node publicly
 - do not port-forward the dashboard or backend without access control
 - add dashboard authentication before remote access
 - add MQTT username/password and ACLs
 - use HTTPS / reverse proxy for external access
 - keep hardware control endpoints protected
+- keep camera endpoints protected
 - avoid running on public Wi-Fi without additional security hardening
 
 Orion is currently designed as a local-first edge automation system.
@@ -1325,7 +1758,7 @@ Orion is currently designed as a local-first edge automation system.
 
 ## Safety Notes
 
-This project interacts with real electrical, HVAC, and irrigation hardware.
+This project interacts with real electrical, HVAC, irrigation, and camera hardware.
 
 Important safety considerations:
 
@@ -1337,6 +1770,7 @@ Important safety considerations:
 - test with disconnected loads first
 - do not rely only on software for emergency shutoff
 - follow safe electrical practices
+- use camera hardware responsibly
 - use at your own risk
 
 Orion is an educational engineering project, not a certified commercial control system.
@@ -1356,4 +1790,4 @@ Use at your own risk when controlling real hardware.
 David Echols  
 GitHub: Echo13091
 
-Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Docker Compose deployment, Raspberry Pi field controllers, ESP32 hardware nodes, and real home automation equipment.
+Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Docker Compose deployment, Raspberry Pi field controllers, Raspberry Pi Zero 2 W environmental vision, ESP32 hardware nodes, and real home automation equipment.
