@@ -320,8 +320,6 @@ The vision node is intentionally lightweight. It handles camera capture, WebRTC 
 
 Planned future capabilities include:
 
-- bird detection
-- species recognition
 - auto tracking
 - digital zoom
 - lawn / grass condition monitoring
