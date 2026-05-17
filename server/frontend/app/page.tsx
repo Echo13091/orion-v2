@@ -115,6 +115,29 @@ type SystemState = {
   weather?: WeatherState;
 };
 
+type VisionStatus = {
+  ok?: boolean;
+  online?: boolean;
+  node_url?: string;
+  node_id?: string;
+  node_name?: string;
+  camera_online?: boolean;
+  streaming_clients?: number;
+  recording?: boolean;
+  fps?: number | null;
+  resolution?: string | null;
+  focus_mode?: string | null;
+  focus_state?: string | null;
+  lens_position?: number | null;
+  uptime_seconds?: number | null;
+  last_frame_age?: number | null;
+  fault?: boolean;
+  fault_code?: string;
+  fault_message?: string;
+  error?: string;
+  detail?: string;
+};
+
 type StatusState = "good" | "bad" | "warn" | "neutral" | "active";
 
 type AutomationMode = "manual" | "auto";
@@ -1336,6 +1359,7 @@ export default function Home() {
     useState<AbortController | null>(null);
 
   const [system, setSystem] = useState<SystemState | null>(null);
+  const [vision, setVision] = useState<VisionStatus | null>(null);
 
   const [controlLoading, setControlLoading] = useState(false);
   const [controlResult, setControlResult] = useState<unknown>(null);
@@ -1457,6 +1481,20 @@ export default function Home() {
             ? "neutral"
             : "good";
 
+  const visionStatus = !vision
+    ? "Unknown"
+    : vision.online
+      ? "Online"
+      : "Offline";
+
+  const visionPillState: StatusState = !vision
+    ? "neutral"
+    : vision.fault
+      ? "bad"
+      : vision.online
+        ? "good"
+        : "bad";
+
   const systemHealthState: StatusState = !system
     ? "neutral"
     : system.fault
@@ -1551,6 +1589,31 @@ export default function Home() {
     } catch {}
   }, []);
 
+  const loadVision = useCallback(async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/v1/vision/status`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setVision({
+          ok: false,
+          online: false,
+          error: data?.error || "Vision node unavailable",
+          detail: data?.detail,
+        });
+        return;
+      }
+
+      const data = await res.json();
+      setVision(data);
+    } catch (err) {
+      setVision({
+        ok: false,
+        online: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
   const loadAutomationMode = useCallback(async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/v1/control/ai/mode`);
@@ -1566,15 +1629,19 @@ export default function Home() {
   useEffect(() => {
     loadSessions();
     loadSystem();
+    loadVision();
     loadAutomationMode();
 
     const interval = window.setInterval(
-      loadSystem,
+      () => {
+        loadSystem();
+        loadVision();
+      },
       Number.isFinite(SYSTEM_POLL_MS) ? SYSTEM_POLL_MS : 3000,
     );
 
     return () => window.clearInterval(interval);
-  }, [loadSessions, loadSystem, loadAutomationMode]);
+  }, [loadSessions, loadSystem, loadVision, loadAutomationMode]);
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -2494,6 +2561,147 @@ export default function Home() {
           </CollapsibleCard>
 
           <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3">
+            <CollapsibleCard
+              icon="📷"
+              title="Bird Feeder Camera"
+              subtitle={vision?.node_name || "Orion Vision Node"}
+              status={visionStatus}
+              statusState={visionPillState}
+              primaryLabel="Camera state"
+              primaryValue={vision?.online ? "Streaming ready" : "Offline"}
+              metrics={[
+                {
+                  label: "FPS",
+                  value: Number.isFinite(Number(vision?.fps))
+                    ? `${Number(vision?.fps).toFixed(1)}`
+                    : "--",
+                  state:
+                    Number(vision?.fps ?? 0) >= 20
+                      ? "good"
+                      : Number(vision?.fps ?? 0) > 0
+                        ? "warn"
+                        : "neutral",
+                },
+                {
+                  label: "Resolution",
+                  value: vision?.resolution || "--",
+                },
+                {
+                  label: "Focus",
+                  value: formatMode(vision?.focus_mode),
+                  state: vision?.focus_mode ? "good" : "neutral",
+                },
+                {
+                  label: "Clients",
+                  value: vision?.streaming_clients ?? 0,
+                  state: Number(vision?.streaming_clients ?? 0) > 0 ? "active" : "neutral",
+                },
+              ]}
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <Field
+                  label="Camera"
+                  value={vision?.camera_online ? "Online" : "Offline"}
+                  state={vision?.camera_online ? "good" : "bad"}
+                />
+                <Field
+                  label="Recording"
+                  value={vision?.recording ? "Active" : "Idle"}
+                  state={vision?.recording ? "active" : "neutral"}
+                />
+                <Field
+                  label="Lens"
+                  value={
+                    Number.isFinite(Number(vision?.lens_position))
+                      ? Number(vision?.lens_position).toFixed(2)
+                      : "--"
+                  }
+                />
+                <Field
+                  label="Last frame"
+                  value={
+                    Number.isFinite(Number(vision?.last_frame_age))
+                      ? `${Number(vision?.last_frame_age).toFixed(2)}s ago`
+                      : "--"
+                  }
+                  state={
+                    Number(vision?.last_frame_age ?? 999) <= 2
+                      ? "good"
+                      : "warn"
+                  }
+                />
+                <Field
+                  label="Fault"
+                  value={vision?.fault ? vision?.fault_code || "Fault" : "None"}
+                  state={vision?.fault ? "bad" : "good"}
+                />
+                <Field
+                  label="Node"
+                  value={vision?.node_id || "vision_node_1"}
+                />
+              </div>
+
+              {vision?.error && (
+                <div className="mt-4 rounded-2xl border border-red-400/15 bg-red-500/10 p-3 text-xs leading-5 text-red-200">
+                  {vision.error}
+                  {vision.detail ? ` · ${vision.detail}` : ""}
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  onClick={loadVision}
+                  variant="secondary"
+                  className="h-9"
+                >
+                  Refresh
+                </Button>
+
+                <Button
+                  onClick={() =>
+                    window.open(`${BACKEND_URL}/v1/vision/snapshot?t=${Date.now()}`, "_blank")
+                  }
+                  disabled={!vision?.online}
+                  variant="secondary"
+                  className="h-9"
+                >
+                  Snapshot
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    await fetch(`${BACKEND_URL}/v1/vision/focus`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ mode: "auto_once" }),
+                    });
+                    await loadVision();
+                  }}
+                  disabled={!vision?.online}
+                  variant="secondary"
+                  className="h-9"
+                >
+                  AF once
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    const confirmed = window.confirm("Restart the vision node camera?");
+                    if (!confirmed) return;
+                    await fetch(`${BACKEND_URL}/v1/vision/restart-camera`, {
+                      method: "POST",
+                    });
+                    await loadVision();
+                  }}
+                  disabled={!vision?.online}
+                  variant="ghost"
+                  className="h-9"
+                >
+                  Restart camera
+                </Button>
+              </div>
+            </CollapsibleCard>
+
             <CollapsibleCard
               icon="🌦️"
               title="Weather"

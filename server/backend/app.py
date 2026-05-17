@@ -7,6 +7,7 @@ from api.chat import register_chat
 from api.control import register_control
 from api.sessions import register_sessions
 from api.system import register_system
+from api.vision import register_vision
 from ai.loop import ai_loop
 from ai.llm import warm_model
 
@@ -21,6 +22,7 @@ register_chat(app)
 register_sessions(app)
 register_system(app)
 register_control(app)
+register_vision(app)
 
 
 def start_ai_loop():

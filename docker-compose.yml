@@ -4,6 +4,9 @@ services:
     container_name: orion-backend
     ports:
       - "5001:5001"
+    environment:
+      VISION_NODE_URL: http://192.168.7.238:5000
+      VISION_TIMEOUT: "3.0"
     volumes:
       - ./server/backend/memory:/app/memory
       - orion_backend_logs:/app/logs
