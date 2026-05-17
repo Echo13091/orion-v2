@@ -164,6 +164,29 @@ type EnvironmentState = {
     dryness_index?: number;
     rain_probability?: number;
     temperature_f?: number | null;
+    feels_like_f?: number | null;
+    humidity?: number | null;
+    lawn_need_score?: number;
+    lawn_need_level?: string;
+    heat_stress?: boolean;
+    extreme_heat?: boolean;
+    low_humidity?: boolean;
+    camera_rain_detected?: boolean;
+    camera_rain_confidence?: string;
+    camera_wetness_score?: number;
+    camera_motion_score?: number;
+  };
+  irrigation?: {
+    online?: boolean;
+    running?: boolean;
+    zone?: string | number | null;
+    next_irrigation?: unknown;
+    last_irrigation?: unknown;
+  };
+  safety?: {
+    auto_execute_allowed?: boolean;
+    requires_user_approval?: boolean;
+    reason?: string;
   };
 };
 
@@ -2897,200 +2920,113 @@ export default function Home() {
             <CollapsibleCard
               icon="📷"
               title="Orion Vision Node"
-              subtitle="Environmental Camera"
+              subtitle="Environmental camera and vision intelligence"
               status={visionStatus}
               statusState={visionPillState}
-              primaryLabel="Camera state"
-              primaryValue={vision?.online ? "Streaming ready" : "Offline"}
+              primaryLabel="Environmental decision"
+              primaryValue={
+                system?.environment?.recommendation
+                  ? formatMode(system.environment.recommendation)
+                  : vision?.online
+                    ? "Monitoring"
+                    : "Offline"
+              }
               metrics={[
                 {
-                  label: "FPS",
-                  value: Number.isFinite(Number(vision?.fps))
-                    ? `${Number(vision?.fps).toFixed(1)}`
+                  label: "Lawn",
+                  value: formatMode(grassCondition?.condition),
+                  state:
+                    grassCondition?.condition === "healthy"
+                      ? "good"
+                      : grassCondition?.condition === "fair"
+                        ? "warn"
+                        : grassCondition?.condition === "stressed" ||
+                            grassCondition?.condition === "poor"
+                          ? "bad"
+                          : "neutral",
+                },
+                {
+                  label: "Score",
+                  value: Number.isFinite(Number(grassCondition?.score))
+                    ? `${Number(grassCondition?.score).toFixed(0)} / 100`
                     : "--",
                   state:
-                    Number(vision?.fps ?? 0) >= 20
+                    Number(grassCondition?.score ?? 0) >= 65
                       ? "good"
-                      : Number(vision?.fps ?? 0) > 0
+                      : Number(grassCondition?.score ?? 0) >= 45
+                        ? "warn"
+                        : Number(grassCondition?.score ?? 0) > 0
+                          ? "bad"
+                          : "neutral",
+                },
+                {
+                  label: "Rain Evidence",
+                  value: system?.environment?.inputs?.camera_rain_detected
+                    ? "Detected"
+                    : "Not Visual",
+                  state: system?.environment?.inputs?.camera_rain_detected
+                    ? "warn"
+                    : "neutral",
+                },
+                {
+                  label: "Confidence",
+                  value: formatMode(system?.environment?.confidence),
+                  state:
+                    system?.environment?.confidence === "high"
+                      ? "good"
+                      : system?.environment?.confidence === "medium"
                         ? "warn"
                         : "neutral",
                 },
-                {
-                  label: "Resolution",
-                  value: vision?.resolution || "--",
-                },
-                {
-                  label: "Focus",
-                  value: formatMode(vision?.focus_mode),
-                  state: vision?.focus_mode ? "good" : "neutral",
-                },
-                {
-                  label: "Clients",
-                  value: vision?.streaming_clients ?? 0,
-                  state: Number(vision?.streaming_clients ?? 0) > 0 ? "active" : "neutral",
-                },
               ]}
             >
-              <div className="mt-1 overflow-hidden rounded-2xl border border-slate-800/80 bg-black">
-                <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/80 px-3 py-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Live WebRTC Stream
-                  </div>
-                  <StatusPill
-                    label={
-                      visionStreamState === "connected"
-                        ? "Connected"
-                        : visionStreamState === "connecting"
-                          ? "Connecting"
-                          : visionStreamState === "reconnecting"
-                            ? "Reconnecting"
-                            : visionStreamState === "error"
-                              ? "Stream error"
-                              : "Idle"
-                    }
-                    state={
-                      visionStreamState === "connected"
-                        ? "active"
-                        : visionStreamState === "connecting" ||
-                            visionStreamState === "reconnecting"
-                          ? "warn"
-                          : visionStreamState === "error"
-                            ? "bad"
-                            : "neutral"
-                    }
-                  />
-                </div>
-
-                <video
-                  ref={visionVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="aspect-video w-full bg-black object-contain"
-                />
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Button
-                  onClick={startVisionStream}
-                  disabled={
-                    !vision?.online ||
-                    visionStreamState === "connecting" ||
-                    visionStreamState === "connected"
-                  }
-                  variant="primary"
-                  className="h-9 w-full"
-                >
-                  {visionStreamState === "connected"
-                    ? "Connected"
-                    : visionStreamState === "connecting"
-                      ? "Connecting..."
-                      : visionStreamState === "error"
-                        ? "Reconnect"
-                        : "Connect"}
-                </Button>
-
-                <Button
-                  onClick={stopVisionStream}
-                  disabled={visionStreamState === "idle"}
-                  variant="secondary"
-                  className="h-9 w-full"
-                >
-                  Disconnect
-                </Button>
-
-                <Button
-                  onClick={toggleVisionRecording}
-                  disabled={visionStreamState !== "connected"}
-                  variant={visionRecording ? "danger" : "success"}
-                  className="h-9 w-full"
-                >
-                  {visionRecording ? "Stop rec" : "Record"}
-                </Button>
-
-                <Button
-                  onClick={() =>
-                    window.open(`${BACKEND_URL}/v1/vision/snapshot?t=${Date.now()}`, "_blank")
-                  }
-                  disabled={!vision?.online}
-                  variant="secondary"
-                  className="h-9 w-full"
-                >
-                  Snapshot
-                </Button>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <Field
-                  label="Camera"
-                  value={vision?.camera_online ? "Online" : "Offline"}
-                  state={vision?.camera_online ? "good" : "bad"}
-                />
-                <Field
-                  label="Recording"
-                  value={visionRecording ? "Recording" : vision?.recording ? "Active" : "Idle"}
-                  state={visionRecording || vision?.recording ? "active" : "neutral"}
-                />
-                <Field
-                  label="Lens"
-                  value={
-                    Number.isFinite(Number(vision?.lens_position))
-                      ? Number(vision?.lens_position).toFixed(2)
-                      : "--"
-                  }
-                />
-                <Field
-                  label="Last frame"
-                  value={
-                    Number.isFinite(Number(vision?.last_frame_age))
-                      ? `${Number(vision?.last_frame_age).toFixed(2)}s ago`
-                      : "--"
-                  }
-                  state={
-                    Number(vision?.last_frame_age ?? 999) <= 2
-                      ? "good"
-                      : "warn"
-                  }
-                />
-                <Field
-                  label="Fault"
-                  value={vision?.fault ? vision?.fault_code || "Fault" : "None"}
-                  state={vision?.fault ? "bad" : "good"}
-                />
-                <Field
-                  label="Node"
-                  value={vision?.node_id || "vision_node_1"}
-                />
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-950/25 p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-100">
-                      Visual Lawn Condition
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/5 p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-100">
+                        Environmental Summary
+                      </div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        Camera, lawn condition, rain evidence, weather, and irrigation context
+                      </div>
                     </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      Deterministic camera-based grass color analysis from the selected environmental camera region
-                    </div>
-                  </div>
-                  <StatusPill
-                    label={formatMode(grassCondition?.condition || "Waiting")}
-                    state={
-                      grassCondition?.condition === "healthy"
-                        ? "good"
-                        : grassCondition?.condition === "fair"
-                          ? "warn"
-                          : grassCondition?.condition === "stressed" ||
-                              grassCondition?.condition === "poor"
-                            ? "bad"
+
+                    <StatusPill
+                      label={
+                        system?.environment?.confidence
+                          ? formatMode(system.environment.confidence)
+                          : "Unknown"
+                      }
+                      state={
+                        system?.environment?.confidence === "high"
+                          ? "good"
+                          : system?.environment?.confidence === "medium"
+                            ? "warn"
                             : "neutral"
-                    }
-                  />
+                      }
+                    />
+                  </div>
+
+                  <p className="text-sm leading-6 text-slate-300">
+                    {system?.environment?.reason ||
+                      "No environmental decision available yet."}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <Field
-                    label="Condition"
+                    label="Vision Node"
+                    value={vision?.online ? "Online" : "Offline"}
+                    state={vision?.online ? "good" : "bad"}
+                  />
+                  <Field
+                    label="Camera"
+                    value={vision?.camera_online ? "Online" : "Offline"}
+                    state={vision?.camera_online ? "good" : "bad"}
+                  />
+                  <Field
+                    label="Lawn Condition"
                     value={formatMode(grassCondition?.condition)}
                     state={
                       grassCondition?.condition === "healthy"
@@ -3104,241 +3040,74 @@ export default function Home() {
                     }
                   />
                   <Field
-                    label="Score"
+                    label="Rain Evidence"
                     value={
-                      Number.isFinite(Number(grassCondition?.score))
-                        ? `${Number(grassCondition?.score).toFixed(0)} / 100`
-                        : "--"
+                      system?.environment?.inputs?.camera_rain_detected
+                        ? "Detected"
+                        : "Not Visually Confirmed"
                     }
                     state={
-                      Number(grassCondition?.score ?? 0) >= 65
-                        ? "good"
-                        : Number(grassCondition?.score ?? 0) >= 45
-                          ? "warn"
-                          : Number(grassCondition?.score ?? 0) > 0
-                            ? "bad"
-                            : "neutral"
-                    }
-                  />
-                  <Field
-                    label="Dryness"
-                    value={
-                      Number.isFinite(Number(grassCondition?.dryness_index))
-                        ? Number(grassCondition?.dryness_index).toFixed(3)
-                        : "--"
-                    }
-                  />
-                  <Field
-                    label="Green"
-                    value={
-                      Number.isFinite(Number(grassCondition?.green_percent))
-                        ? `${Number(grassCondition?.green_percent).toFixed(1)}%`
-                        : "--"
-                    }
-                    state="good"
-                  />
-                  <Field
-                    label="Dry tones"
-                    value={
-                      Number.isFinite(Number(grassCondition?.dry_percent))
-                        ? `${Number(grassCondition?.dry_percent).toFixed(1)}%`
-                        : "--"
-                    }
-                    state={
-                      Number(grassCondition?.dry_percent ?? 0) >= 15
+                      system?.environment?.inputs?.camera_rain_detected
                         ? "warn"
                         : "neutral"
                     }
                   />
                   <Field
-                    label="Valid area"
+                    label="Rain Probability"
                     value={
-                      Number.isFinite(Number(grassCondition?.valid_percent))
-                        ? `${Number(grassCondition?.valid_percent).toFixed(1)}%`
-                        : "--"
-                    }
-                  />
-                </div>
-
-                {grassCondition?.reason && (
-                  <p className="mt-3 text-xs leading-5 text-slate-400">
-                    {grassCondition.reason}
-                  </p>
-                )}
-
-                {grassCondition?.error && (
-                  <div className="mt-3 rounded-xl border border-red-400/15 bg-red-500/10 p-3 text-xs leading-5 text-red-200">
-                    {grassCondition.error}
-                    {grassCondition.detail ? ` · ${grassCondition.detail}` : ""}
-                  </div>
-                )}
-
-                <div className="mt-4">
-                  <Button
-                    onClick={loadGrassCondition}
-                    disabled={!vision?.online}
-                    variant="secondary"
-                    className="h-9"
-                  >
-                    Analyze lawn
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-cyan-400/15 bg-cyan-500/5 p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-100">
-                      Environmental Recommendation
-                    </div>
-
-                    <div className="mt-1 text-xs text-slate-400">
-                      Orion environmental reasoning engine combining lawn condition and weather context
-                    </div>
-                  </div>
-
-                  <StatusPill
-                    label={
-                      system?.environment?.confidence
-                        ? formatMode(system.environment.confidence)
-                        : "Unknown"
-                    }
-                    state={
-                      system?.environment?.confidence === "high"
-                        ? "good"
-                        : system?.environment?.confidence === "medium"
-                          ? "warn"
-                          : "neutral"
-                    }
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field
-                    label="Recommendation"
-                    value={formatMode(system?.environment?.recommendation)}
-                    state={
-                      system?.environment?.recommendation === "no_irrigation_needed"
-                        ? "good"
-                        : system?.environment?.recommendation === "monitor_lawn"
-                          ? "warn"
-                          : system?.environment?.recommendation === "delay_irrigation"
-                            ? "warn"
-                            : system?.environment?.recommendation === "consider_irrigation" ||
-                                system?.environment?.recommendation === "run_short_irrigation"
-                              ? "bad"
-                              : "neutral"
-                    }
-                  />
-
-                  <Field
-                    label="Confidence"
-                    value={formatMode(system?.environment?.confidence)}
-                  />
-
-                  <Field
-                    label="Grass score"
-                    value={
-                      Number.isFinite(Number(system?.environment?.inputs?.grass_score))
+                      Number.isFinite(
+                        Number(system?.environment?.inputs?.rain_probability)
+                      )
                         ? `${Math.round(
-                            Number(system?.environment?.inputs?.grass_score) * 100
-                          )}`
-                        : "--"
-                    }
-                  />
-
-                  <Field
-                    label="Dryness"
-                    value={
-                      Number.isFinite(Number(system?.environment?.inputs?.dryness_index))
-                        ? Number(
-                            system?.environment?.inputs?.dryness_index
-                          ).toFixed(3)
-                        : "--"
-                    }
-                  />
-
-                  <Field
-                    label="Rain"
-                    value={
-                      Number.isFinite(Number(system?.environment?.inputs?.rain_probability))
-                        ? `${Math.round(
-                            Number(system?.environment?.inputs?.rain_probability) * 100
+                            Number(system?.environment?.inputs?.rain_probability) *
+                              100
                           )}%`
                         : "--"
                     }
                     state={
-                      Number(system?.environment?.inputs?.rain_probability ?? 0) >= 0.7
+                      Number(system?.environment?.inputs?.rain_probability ?? 0) >=
+                      0.7
                         ? "warn"
                         : "neutral"
                     }
                   />
-
                   <Field
-                    label="Temperature"
+                    label="Next Run"
                     value={
-                      Number.isFinite(Number(system?.environment?.inputs?.temperature_f))
-                        ? `${Number(
-                            system?.environment?.inputs?.temperature_f
-                          ).toFixed(1)}°F`
+                      system?.environment?.irrigation?.next_irrigation
+                        ? formatMetricValue(
+                            system.environment.irrigation.next_irrigation
+                          )
                         : "--"
                     }
                   />
                 </div>
 
-                <p className="mt-3 text-xs leading-5 text-slate-300">
-                  {system?.environment?.reason ||
-                    "No environmental recommendation available."}
-                </p>
-              </div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href="/vision"
+                    className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-950/25 transition hover:bg-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
+                  >
+                    Open Vision
+                  </a>
 
-              {vision?.error && (
-                <div className="mt-4 rounded-2xl border border-red-400/15 bg-red-500/10 p-3 text-xs leading-5 text-red-200">
-                  {vision.error}
-                  {vision.detail ? ` · ${vision.detail}` : ""}
+                  <Button
+                    onClick={loadVision}
+                    variant="secondary"
+                    className="h-10"
+                  >
+                    Refresh Status
+                  </Button>
+
+                  <Button
+                    onClick={loadGrassCondition}
+                    disabled={!vision?.online}
+                    variant="secondary"
+                    className="h-10"
+                  >
+                    Analyze Lawn
+                  </Button>
                 </div>
-              )}
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  onClick={loadVision}
-                  variant="secondary"
-                  className="h-9"
-                >
-                  Refresh
-                </Button>
-
-                <Button
-                  onClick={async () => {
-                    await fetch(`${BACKEND_URL}/v1/vision/focus`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ mode: "auto_once" }),
-                    });
-                    await loadVision();
-                  }}
-                  disabled={!vision?.online}
-                  variant="secondary"
-                  className="h-9"
-                >
-                  AF once
-                </Button>
-
-                <Button
-                  onClick={async () => {
-                    const confirmed = window.confirm("Restart the vision node camera?");
-                    if (!confirmed) return;
-                    await fetch(`${BACKEND_URL}/v1/vision/restart-camera`, {
-                      method: "POST",
-                    });
-                    await loadVision();
-                  }}
-                  disabled={!vision?.online}
-                  variant="ghost"
-                  className="h-9"
-                >
-                  Restart camera
-                </Button>
               </div>
             </CollapsibleCard>
 
