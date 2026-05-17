@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 def clamp(value: float, lo: float, hi: float) -> float:
@@ -28,6 +28,155 @@ def normalize_dryness(dryness: float | int | None) -> float:
         return 0.5
 
 
+def safe_float(value: Any, default: Optional[float] = None) -> Optional[float]:
+    try:
+        n = float(value)
+        return n
+    except Exception:
+        return default
+
+
+def is_record(value: Any) -> bool:
+    return isinstance(value, dict)
+
+
+def first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def extract_next_irrigation(sprinkler: Dict[str, Any]) -> Any:
+    raw = sprinkler.get("raw") if is_record(sprinkler.get("raw")) else {}
+
+    next_run = first_present(
+        sprinkler.get("next_run"),
+        raw.get("next_run"),
+        raw.get("next_scheduled_run"),
+    )
+
+    if next_run:
+        return next_run
+
+    # Try timeline-style structures.
+    for key in [
+        "timeline",
+        "upcoming_timeline",
+        "upcoming_zone_timeline",
+        "upcoming_zones",
+    ]:
+        items = raw.get(key)
+        if isinstance(items, list) and items:
+            return items[0]
+
+    return None
+
+
+def extract_last_irrigation(sprinkler: Dict[str, Any]) -> Any:
+    raw = sprinkler.get("raw") if is_record(sprinkler.get("raw")) else {}
+
+    return first_present(
+        sprinkler.get("last_run"),
+        sprinkler.get("last_irrigation"),
+        sprinkler.get("last_scheduler_event"),
+        raw.get("last_run"),
+        raw.get("last_irrigation"),
+        raw.get("last_scheduler_event"),
+        raw.get("last_completed_run"),
+    )
+
+
+def summarize_irrigation_context(sprinkler: Dict[str, Any]) -> Dict[str, Any]:
+    raw = sprinkler.get("raw") if is_record(sprinkler.get("raw")) else {}
+
+    running = bool(
+        sprinkler.get("running")
+        or raw.get("running")
+        or raw.get("active")
+    )
+
+    online = sprinkler.get("online")
+    if online is None:
+        online = raw.get("online")
+    if online is None:
+        online = raw.get("service_online")
+    if online is None:
+        online = True
+
+    zone = first_present(
+        sprinkler.get("zone"),
+        raw.get("zone"),
+        raw.get("active_zone"),
+        raw.get("current_zone"),
+    )
+
+    next_irrigation = extract_next_irrigation(sprinkler)
+    last_irrigation = extract_last_irrigation(sprinkler)
+
+    return {
+        "online": bool(online),
+        "running": running,
+        "zone": zone,
+        "next_irrigation": next_irrigation,
+        "last_irrigation": last_irrigation,
+    }
+
+
+def classify_lawn_need(
+    *,
+    grass_score: float,
+    dryness_index: float,
+    rain_probability: float,
+    temp_f: Optional[float],
+    humidity: Optional[float],
+) -> Dict[str, Any]:
+    heat_stress = bool(temp_f is not None and temp_f >= 88)
+    extreme_heat = bool(temp_f is not None and temp_f >= 94)
+    low_humidity = bool(humidity is not None and humidity <= 40)
+
+    # Higher means more irrigation pressure.
+    need_score = 0.0
+
+    # Grass score: lower score means higher need.
+    need_score += (1.0 - grass_score) * 0.42
+
+    # Dryness index: direct pressure.
+    need_score += dryness_index * 0.32
+
+    # Heat raises need.
+    if heat_stress:
+        need_score += 0.12
+    if extreme_heat:
+        need_score += 0.08
+
+    # Low humidity adds stress.
+    if low_humidity:
+        need_score += 0.06
+
+    # Rain reduces need.
+    need_score -= rain_probability * 0.45
+
+    need_score = clamp(need_score, 0.0, 1.0)
+
+    if need_score >= 0.7:
+        need_level = "high"
+    elif need_score >= 0.45:
+        need_level = "moderate"
+    elif need_score >= 0.25:
+        need_level = "low"
+    else:
+        need_level = "minimal"
+
+    return {
+        "need_score": round(need_score, 3),
+        "need_level": need_level,
+        "heat_stress": heat_stress,
+        "extreme_heat": extreme_heat,
+        "low_humidity": low_humidity,
+    }
+
+
 def evaluate_environment(
     *,
     grass_condition: Dict[str, Any] | None,
@@ -39,94 +188,154 @@ def evaluate_environment(
     sprinkler = sprinkler or {}
 
     grass_score = normalize_grass_score(grass_condition.get("score"))
-    dryness_index = normalize_dryness(
-        grass_condition.get("dryness_index")
+    dryness_index = normalize_dryness(grass_condition.get("dryness_index"))
+    rain_probability = normalize_rain_probability(weather.get("rain_chance"))
+
+    temp_f = safe_float(weather.get("temp"))
+    feels_like_f = safe_float(weather.get("feels_like"))
+    humidity = safe_float(weather.get("humidity"))
+
+    irrigation_context = summarize_irrigation_context(sprinkler)
+
+    lawn_need = classify_lawn_need(
+        grass_score=grass_score,
+        dryness_index=dryness_index,
+        rain_probability=rain_probability,
+        temp_f=feels_like_f if feels_like_f is not None else temp_f,
+        humidity=humidity,
     )
 
-    rain_probability = normalize_rain_probability(
-        weather.get("rain_chance")
-    )
-
-    temp_f = weather.get("temp")
-
-    try:
-        temp_f = float(temp_f)
-    except Exception:
-        temp_f = None
-
-    recommendation = "monitor"
+    recommendation = "monitor_lawn"
     confidence = "medium"
-    reason = "Environmental conditions are stable."
+    reason = "Environmental conditions are stable. Continue monitoring lawn condition and weather."
+
+    safety = {
+        "auto_execute_allowed": False,
+        "requires_user_approval": True,
+        "reason": "Environmental recommendations are advisory unless explicitly approved.",
+    }
 
     # ----------------------------------------------------
-    # Rain priority logic
+    # Highest-priority: sprinkler is already running.
     # ----------------------------------------------------
+    if irrigation_context["running"]:
+        if rain_probability >= 0.55:
+            recommendation = "stop_or_delay_irrigation"
+            confidence = "high"
+            reason = (
+                "Sprinkler is running while rain probability is elevated. "
+                "Orion recommends stopping or delaying irrigation to avoid unnecessary watering."
+            )
+        elif lawn_need["need_level"] in {"high", "moderate"}:
+            recommendation = "continue_irrigation_monitor"
+            confidence = "medium"
+            reason = (
+                "Sprinkler is running and lawn condition indicates some watering need. "
+                "Continue monitoring weather and lawn response."
+            )
+        else:
+            recommendation = "monitor_irrigation"
+            confidence = "medium"
+            reason = (
+                "Sprinkler is running, but current lawn and weather indicators do not show urgent watering need."
+            )
 
-    if rain_probability >= 0.7:
+    # ----------------------------------------------------
+    # Rain dominates irrigation decisions.
+    # ----------------------------------------------------
+    elif rain_probability >= 0.7:
         recommendation = "delay_irrigation"
         confidence = "high"
         reason = (
-            "Rain probability is high. "
-            "Delay irrigation and continue monitoring lawn condition."
+            "Rain probability is high. Delay irrigation and continue monitoring lawn condition."
+        )
+
+    elif rain_probability >= 0.45 and lawn_need["need_level"] != "high":
+        recommendation = "delay_irrigation"
+        confidence = "medium"
+        reason = (
+            "Rain is possible and lawn watering need is not high. "
+            "Delay irrigation and monitor whether rainfall improves lawn condition."
         )
 
     # ----------------------------------------------------
-    # Healthy lawn
+    # Healthy / low need.
     # ----------------------------------------------------
-
-    elif grass_score >= 0.65 and dryness_index <= 0.35:
+    elif lawn_need["need_level"] == "minimal":
         recommendation = "no_irrigation_needed"
         confidence = "high"
         reason = (
-            "Grass condition appears healthy with low dryness indicators."
+            "Grass condition and dryness indicators do not show a current need for irrigation."
         )
 
-    # ----------------------------------------------------
-    # Mild stress
-    # ----------------------------------------------------
-
-    elif grass_score >= 0.4 and dryness_index <= 0.55:
+    elif lawn_need["need_level"] == "low":
         recommendation = "monitor_lawn"
         confidence = "medium"
         reason = (
-            "Grass condition shows moderate stress. "
-            "Continue monitoring weather and lawn health."
+            "Grass condition shows mild or limited stress. Continue monitoring before watering."
         )
 
     # ----------------------------------------------------
-    # Dry / stressed lawn
+    # Moderate need.
     # ----------------------------------------------------
+    elif lawn_need["need_level"] == "moderate":
+        recommendation = "monitor_lawn"
+        confidence = "medium"
 
-    elif grass_score < 0.4 or dryness_index > 0.55:
-        if rain_probability < 0.3:
+        if irrigation_context["next_irrigation"]:
+            reason = (
+                "Grass condition shows moderate watering need, but an irrigation run is already scheduled. "
+                "Monitor lawn condition and allow the scheduled run unless rain increases."
+            )
+        else:
+            reason = (
+                "Grass condition shows moderate watering need with low rain probability. "
+                "Consider scheduling irrigation if conditions do not improve."
+            )
+
+    # ----------------------------------------------------
+    # High need.
+    # ----------------------------------------------------
+    elif lawn_need["need_level"] == "high":
+        if irrigation_context["next_irrigation"]:
+            recommendation = "monitor_scheduled_irrigation"
+            confidence = "medium"
+            reason = (
+                "Grass condition indicates high watering need, and irrigation is already scheduled. "
+                "Monitor the next run and verify lawn response afterward."
+            )
+        else:
             recommendation = "consider_irrigation"
             confidence = "high"
 
-            if temp_f and temp_f >= 88:
+            if lawn_need["extreme_heat"]:
                 reason = (
-                    "Grass condition indicates elevated stress with hot weather "
-                    "and low rain probability."
+                    "Grass condition indicates high watering need with extreme heat and low rain probability. "
+                    "Consider an early morning irrigation run."
                 )
             else:
                 reason = (
-                    "Grass condition indicates elevated dryness with low rain probability."
+                    "Grass condition indicates high watering need with low rain probability. "
+                    "Consider irrigation after checking local watering rules."
                 )
-
-        else:
-            recommendation = "monitor_lawn"
-            confidence = "medium"
-            reason = (
-                "Grass condition shows stress, but incoming rain may reduce irrigation needs."
-            )
 
     return {
         "recommendation": recommendation,
         "confidence": confidence,
         "reason": reason,
+        "safety": safety,
         "inputs": {
             "grass_score": round(grass_score, 3),
             "dryness_index": round(dryness_index, 3),
             "rain_probability": round(rain_probability, 3),
             "temperature_f": temp_f,
+            "feels_like_f": feels_like_f,
+            "humidity": humidity,
+            "lawn_need_score": lawn_need["need_score"],
+            "lawn_need_level": lawn_need["need_level"],
+            "heat_stress": lawn_need["heat_stress"],
+            "extreme_heat": lawn_need["extreme_heat"],
+            "low_humidity": lawn_need["low_humidity"],
         },
+        "irrigation": irrigation_context,
     }
