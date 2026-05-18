@@ -171,6 +171,7 @@ type EnvironmentState = {
     heat_stress?: boolean;
     extreme_heat?: boolean;
     low_humidity?: boolean;
+    lawn_analysis_available?: boolean;
     camera_rain_detected?: boolean;
     camera_rain_confidence?: string;
     camera_wetness_score?: number;
@@ -1372,7 +1373,7 @@ function EmptyChatState({
   ];
 
   return (
-    <div className="flex h-full min-h-[220px] items-center justify-center p-4">
+    <div className="flex h-full min-h-[180px] items-center justify-center p-4">
       <div className="max-w-md rounded-2xl border border-slate-800/80 bg-slate-950/35 p-6 text-center shadow-2xl shadow-black/10">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600/15 text-2xl ring-1 ring-blue-400/20">
           🤖
@@ -1648,6 +1649,10 @@ export default function Home() {
       const data = await res.json();
       setSystem(data);
 
+      if (data?.grass_condition) {
+        setGrassCondition(data.grass_condition);
+      }
+
       if (data?.automation_mode === "auto" || data?.automation_mode === "manual") {
         setAutomationMode(data.automation_mode);
       }
@@ -1717,21 +1722,17 @@ export default function Home() {
   useEffect(() => {
     loadSessions();
     loadSystem();
-    loadVision();
-    loadGrassCondition();
     loadAutomationMode();
 
     const interval = window.setInterval(
       () => {
         loadSystem();
-        loadVision();
-        loadGrassCondition();
       },
       Number.isFinite(SYSTEM_POLL_MS) ? SYSTEM_POLL_MS : 3000,
     );
 
     return () => window.clearInterval(interval);
-  }, [loadSessions, loadSystem, loadVision, loadGrassCondition, loadAutomationMode]);
+  }, [loadSessions, loadSystem, loadAutomationMode]);
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -2387,38 +2388,9 @@ export default function Home() {
   };
 
 
-  useEffect(() => {
-    const handlePageHide = () => {
-      stopVisionStream();
-    };
+  // Main dashboard does not manage WebRTC lifecycle. See /vision for camera streaming.
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        stopVisionStream();
-      }
-    };
-
-    window.addEventListener("pagehide", handlePageHide);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("pagehide", handlePageHide);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      stopVisionStream();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!vision?.online) return;
-    if (visionAutoConnectAttemptedRef.current) return;
-    if (visionPcRef.current) return;
-    if (visionStreamState !== "idle" && visionStreamState !== "error") return;
-
-    visionAutoConnectAttemptedRef.current = true;
-    startVisionStream();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vision?.online, visionStreamState]);
+  // Vision streaming is handled on /vision. The main dashboard only shows a summary.
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -2433,7 +2405,7 @@ export default function Home() {
 
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.14),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.08),_transparent_30%),linear-gradient(180deg,_rgba(15,23,42,0.22),_transparent_42%)]" />
 
-      <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-xl">
+      <header className="relative z-20 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4 px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-xl shadow-lg shadow-blue-950/30">
@@ -2461,7 +2433,12 @@ export default function Home() {
               state={automationMode === "auto" ? "active" : "neutral"}
             />
 
-            <StatusPill label={weatherStatus} state={weatherPillState} />
+            <a
+              href="/vision"
+              className="inline-flex h-8 items-center justify-center rounded-full border border-blue-400/20 bg-blue-500/10 px-3 text-xs font-semibold text-blue-100 transition hover:border-blue-300/40 hover:bg-blue-500/20 hover:text-white"
+            >
+              Vision
+            </a>
 
             <StatusPill
               label={!system ? "Loading" : system.fault ? "Fault" : "Healthy"}
@@ -2650,8 +2627,8 @@ export default function Home() {
 
           <CollapsibleCard
             icon="🤖"
-            title="Orion AI"
-            subtitle={lastUpdatedLabel}
+            title="Orion Decision Center"
+            subtitle="Decision, recommendation, execution, and safety"
             status={
               !system
                 ? "Loading"
@@ -2668,62 +2645,37 @@ export default function Home() {
             metricsWide
             metrics={[
               {
-                label: "AI",
-                value: formatMode(system?.ai_status),
-                state: aiActive ? "good" : "neutral",
+                label: "Decision",
+                value: system?.last_decision?.action
+                  ? formatMode(system.last_decision.action)
+                  : "Observe",
+                state: system?.last_decision?.action ? "active" : "neutral",
               },
               {
-                label: "Fault",
-                value: system?.fault ? "Yes" : "No",
-                state: system?.fault ? "bad" : "good",
+                label: "Recommendation",
+                value: orionRecommendation.title,
+                state: orionRecommendation.state,
               },
               {
-                label: "CPU",
-                value: percent(system?.cpu),
+                label: "Execution",
+                value: executionSummary.status,
+                state: executionSummary.state,
               },
               {
-                label: "Memory",
-                value: percent(system?.memory),
+                label: "Safety",
+                value: executionSummary.safety,
+                state: executionSummary.state,
               },
             ]}
           >
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
               <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Last decision
+                      Current recommendation
                     </div>
-                    <div className="mt-2 text-lg font-semibold tracking-tight text-white">
-                      {system?.last_decision?.action
-                        ? formatMode(system.last_decision.action)
-                        : "Autonomous Monitoring"}
-                    </div>
-                  </div>
-
-                  <StatusPill
-                    label={
-                      system?.last_decision?.time
-                        ? formatLastUpdated(system?.last_decision?.time)
-                        : "No action yet"
-                    }
-                    state={system?.last_decision?.action ? "active" : "neutral"}
-                  />
-                </div>
-
-                <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">
-                  {system?.last_decision?.reason ||
-                    "No automation decision has been recorded yet. Orion is observing live device state."}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Recommendation
-                    </div>
-                    <div className="mt-2 text-lg font-semibold tracking-tight text-white">
+                    <div className="mt-2 text-xl font-semibold tracking-tight text-white">
                       {orionRecommendation.title}
                     </div>
                   </div>
@@ -2734,6 +2686,17 @@ export default function Home() {
                 <p className="mt-3 text-sm leading-6 text-slate-400">
                   {orionRecommendation.detail}
                 </p>
+
+                {system?.last_decision?.reason && (
+                  <div className="mt-4 rounded-xl border border-slate-800/70 bg-slate-950/40 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Decision trace
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      {system.last_decision.reason}
+                    </p>
+                  </div>
+                )}
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   {orionRecommendation.canApply && (
@@ -2773,127 +2736,66 @@ export default function Home() {
                     Ask Orion
                   </Button>
                 </div>
+              </div>
 
-                <div className="mt-4 rounded-xl border border-slate-800/70 bg-slate-950/35 p-3">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                        Execution mode
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-slate-400">
-                        Manual requires operator approval. Auto allows Orion to apply approved low-risk actions through the control layer.
-                      </p>
+              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-100">
+                      Execution Control
                     </div>
-                    <StatusPill
-                      label={automationMode === "auto" ? "Auto" : "Manual"}
-                      state={automationMode === "auto" ? "active" : "neutral"}
-                    />
+                    <div className="mt-1 text-xs text-slate-400">
+                      Manual approval is recommended for hardware actions.
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      onClick={() => setAutomationModeAction("manual")}
-                      variant={automationMode === "manual" ? "primary" : "secondary"}
-                      className="h-9 w-full"
-                    >
-                      Manual
-                    </Button>
-                    <Button
-                      onClick={() => setAutomationModeAction("auto")}
-                      variant={automationMode === "auto" ? "primary" : "secondary"}
-                      className="h-9 w-full"
-                    >
-                      Auto
-                    </Button>
-                  </div>
+                  <StatusPill
+                    label={automationMode === "auto" ? "Auto" : "Manual"}
+                    state={automationMode === "auto" ? "active" : "neutral"}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={() => setAutomationModeAction("manual")}
+                    variant={automationMode === "manual" ? "primary" : "secondary"}
+                    className="h-9 w-full"
+                  >
+                    Manual
+                  </Button>
+                  <Button
+                    onClick={() => setAutomationModeAction("auto")}
+                    variant={automationMode === "auto" ? "primary" : "secondary"}
+                    className="h-9 w-full"
+                  >
+                    Auto
+                  </Button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Field
+                    label="Execution"
+                    value={executionSummary.status}
+                    state={executionSummary.state}
+                  />
+                  <Field label="Action" value={executionSummary.action} />
+                  <Field
+                    label="Safety"
+                    value={executionSummary.safety}
+                    state={executionSummary.state}
+                  />
+                  <Field
+                    label="Manual Override"
+                    value={manualOverride.active ? manualOverride.label : "Inactive"}
+                    state={manualOverride.active ? "warn" : "neutral"}
+                  />
                 </div>
               </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <Field
-                label="Execution"
-                value={executionSummary.status}
-                state={executionSummary.state}
-              />
-              <Field label="Action" value={executionSummary.action} />
-              <Field
-                label="Safety"
-                value={executionSummary.safety}
-                state={executionSummary.state}
-              />
-              <Field
-                label="Manual override"
-                value={manualOverride.active ? manualOverride.label : "Inactive"}
-                state={manualOverride.active ? "warn" : "neutral"}
-              />
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-950/25 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-100">
-                    System load
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    Live resource usage from the backend
-                  </div>
-                </div>
-                <StatusPill label={lastUpdatedLabel} state="neutral" />
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                <ProgressStat
-                  label="CPU"
-                  value={system?.cpu}
-                  state={
-                    Number(system?.cpu ?? 0) >= 80
-                      ? "bad"
-                      : Number(system?.cpu ?? 0) >= 60
-                        ? "warn"
-                        : "neutral"
-                  }
-                />
-                <ProgressStat
-                  label="Memory"
-                  value={system?.memory}
-                  state={
-                    Number(system?.memory ?? 0) >= 80
-                      ? "bad"
-                      : Number(system?.memory ?? 0) >= 60
-                        ? "warn"
-                        : "neutral"
-                  }
-                />
-                <ProgressStat
-                  label="GPU"
-                  value={system?.gpu}
-                  state={
-                    Number(system?.gpu ?? 0) >= 80
-                      ? "bad"
-                      : Number(system?.gpu ?? 0) >= 60
-                        ? "warn"
-                        : "neutral"
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <StatusPill label={`Weather: ${weatherStatus}`} state={weatherPillState} />
-              <StatusPill
-                label={`Sprinkler: ${sprinklerStatus}`}
-                state={sprinklerPillState}
-              />
-              <StatusPill
-                label={`Thermostat: ${thermostatStatus}`}
-                state={thermostatPillState}
-              />
             </div>
 
             <details className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-950/30">
-              <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-medium text-slate-400 transition hover:text-slate-100 [&::-webkit-details-marker]:hidden">
-                Advanced / Debug
+              <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-medium text-slate-500 transition hover:text-slate-300 [&::-webkit-details-marker]:hidden">
+                Developer Debug / Raw Output
               </summary>
               <div className="grid gap-3 border-t border-slate-800/80 p-3 lg:grid-cols-2">
                 <div>
@@ -2914,27 +2816,41 @@ export default function Home() {
                 </div>
               </div>
             </details>
+
           </CollapsibleCard>
 
-          <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
             <CollapsibleCard
               icon="📷"
-              title="Orion Vision Node"
-              subtitle="Environmental camera and vision intelligence"
-              status={visionStatus}
-              statusState={visionPillState}
+              title="Vision"
+              subtitle="Environmental camera status and decision summary"
+              status={
+                system?.environment?.inputs?.camera_rain_detected
+                  ? "Wet Surface"
+                  : vision?.online
+                    ? "Online"
+                    : "Open page"
+              }
+              statusState={
+                system?.environment?.inputs?.camera_rain_detected
+                  ? "warn"
+                  : vision?.online
+                    ? "good"
+                    : "neutral"
+              }
               primaryLabel="Environmental decision"
               primaryValue={
                 system?.environment?.recommendation
                   ? formatMode(system.environment.recommendation)
-                  : vision?.online
-                    ? "Monitoring"
-                    : "Offline"
+                  : "Open Vision"
               }
               metrics={[
                 {
                   label: "Lawn",
-                  value: formatMode(grassCondition?.condition),
+                  value:
+                    system?.environment?.inputs?.lawn_analysis_available === false
+                      ? "Low Light"
+                      : formatMode(grassCondition?.condition),
                   state:
                     grassCondition?.condition === "healthy"
                       ? "good"
@@ -2946,24 +2862,10 @@ export default function Home() {
                           : "neutral",
                 },
                 {
-                  label: "Score",
-                  value: Number.isFinite(Number(grassCondition?.score))
-                    ? `${Number(grassCondition?.score).toFixed(0)} / 100`
-                    : "--",
-                  state:
-                    Number(grassCondition?.score ?? 0) >= 65
-                      ? "good"
-                      : Number(grassCondition?.score ?? 0) >= 45
-                        ? "warn"
-                        : Number(grassCondition?.score ?? 0) > 0
-                          ? "bad"
-                          : "neutral",
-                },
-                {
-                  label: "Visual Rain Evidence",
+                  label: "Visual Rain",
                   value: system?.environment?.inputs?.camera_rain_detected
-                    ? "Detected"
-                    : "Not Visually Confirmed",
+                    ? "Wet Surface"
+                    : "Not Visually Confirmedly Confirmed",
                   state: system?.environment?.inputs?.camera_rain_detected
                     ? "warn"
                     : "neutral",
@@ -2978,136 +2880,38 @@ export default function Home() {
                         ? "warn"
                         : "neutral",
                 },
+                {
+                  label: "Need",
+                  value:
+                    system?.environment?.inputs?.lawn_analysis_available === false
+                      ? "Not Evaluated"
+                      : formatMode(system?.environment?.inputs?.lawn_need_level),
+                  state:
+                    system?.environment?.inputs?.lawn_need_level === "high"
+                      ? "bad"
+                      : system?.environment?.inputs?.lawn_need_level === "moderate"
+                        ? "warn"
+                        : "neutral",
+                },
               ]}
             >
               <div className="space-y-4">
-                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/5 p-4">
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-100">
-                        Environmental Summary
-                      </div>
-                      <div className="mt-1 text-xs text-slate-400">
-                        Camera, lawn condition, rain evidence, weather, and irrigation context
-                      </div>
-                    </div>
-
-                    <StatusPill
-                      label={
-                        system?.environment?.confidence
-                          ? formatMode(system.environment.confidence)
-                          : "Unknown"
-                      }
-                      state={
-                        system?.environment?.confidence === "high"
-                          ? "good"
-                          : system?.environment?.confidence === "medium"
-                            ? "warn"
-                            : "neutral"
-                      }
-                    />
+                <div className="rounded-2xl border border-blue-400/15 bg-blue-500/5 p-4">
+                  <div className="mb-2 text-sm font-semibold text-slate-100">
+                    Environmental Environmental Vision Summary
                   </div>
-
                   <p className="text-sm leading-6 text-slate-300">
                     {system?.environment?.reason ||
-                      "No environmental decision available yet."}
+                      "Open the Vision page for the live camera stream, lawn condition, visual rain evidence, and environmental decision details."}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <Field
-                    label="Vision Node"
-                    value={vision?.online ? "Online" : "Offline"}
-                    state={vision?.online ? "good" : "bad"}
-                  />
-                  <Field
-                    label="Camera"
-                    value={vision?.camera_online ? "Online" : "Offline"}
-                    state={vision?.camera_online ? "good" : "bad"}
-                  />
-                  <Field
-                    label="Lawn Condition"
-                    value={formatMode(grassCondition?.condition)}
-                    state={
-                      grassCondition?.condition === "healthy"
-                        ? "good"
-                        : grassCondition?.condition === "fair"
-                          ? "warn"
-                          : grassCondition?.condition === "stressed" ||
-                              grassCondition?.condition === "poor"
-                            ? "bad"
-                            : "neutral"
-                    }
-                  />
-                  <Field
-                    label="Visual Rain Evidence"
-                    value={
-                      system?.environment?.inputs?.camera_rain_detected
-                        ? "Detected"
-                        : "Not Visually Confirmedly Confirmed"
-                    }
-                    state={
-                      system?.environment?.inputs?.camera_rain_detected
-                        ? "warn"
-                        : "neutral"
-                    }
-                  />
-                  <Field
-                    label="Rain Probability"
-                    value={
-                      Number.isFinite(
-                        Number(system?.environment?.inputs?.rain_probability)
-                      )
-                        ? `${Math.round(
-                            Number(system?.environment?.inputs?.rain_probability) *
-                              100
-                          )}%`
-                        : "--"
-                    }
-                    state={
-                      Number(system?.environment?.inputs?.rain_probability ?? 0) >=
-                      0.7
-                        ? "warn"
-                        : "neutral"
-                    }
-                  />
-                  <Field
-                    label="Next Run"
-                    value={
-                      system?.environment?.irrigation?.next_irrigation
-                        ? formatMetricValue(
-                            system.environment.irrigation.next_irrigation
-                          )
-                        : "--"
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <a
-                    href="/vision"
-                    className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-950/25 transition hover:bg-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
-                  >
-                    Open Vision
-                  </a>
-
-                  <Button
-                    onClick={loadVision}
-                    variant="secondary"
-                    className="h-10"
-                  >
-                    Refresh Status
-                  </Button>
-
-                  <Button
-                    onClick={loadGrassCondition}
-                    disabled={!vision?.online}
-                    variant="secondary"
-                    className="h-10"
-                  >
-                    Analyze Lawn
-                  </Button>
-                </div>
+                <a
+                  href="/vision"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-950/25 transition hover:bg-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
+                >
+                  Open Vision Detail Page
+                </a>
               </div>
             </CollapsibleCard>
 
@@ -3167,7 +2971,7 @@ export default function Home() {
             <CollapsibleCard
               icon="💧"
               title="Sprinkler"
-              subtitle="Irrigation status and manual controls"
+              subtitle="Schedule, controller status, and manual zone controls"
               status={sprinklerStatus}
               statusState={sprinklerPillState}
               primaryLabel="Current state"
@@ -3434,7 +3238,7 @@ export default function Home() {
             <CollapsibleCard
               icon="🌡️"
               title="Thermostat"
-              subtitle="Temperature, HVAC mode, and fan control"
+              subtitle="Temperature, equipment state, humidity, and fan control"
               status={thermostatStatus}
               statusState={thermostatPillState}
               primaryLabel="Current temperature"
@@ -3573,7 +3377,7 @@ export default function Home() {
         </section>
 
         <aside className="flex min-h-0 flex-col gap-4">
-          <Panel className="flex min-h-[640px] flex-col xl:min-h-0 xl:flex-1">
+          <Panel className="flex min-h-[430px] flex-col xl:min-h-0 xl:flex-1">
             <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 px-5 py-4">
               <div className="min-w-0">
                 <h2 className="truncate text-sm font-semibold tracking-tight text-slate-100">
