@@ -47,6 +47,19 @@ def first_present(*values: Any) -> Any:
     return None
 
 
+def is_lawn_analysis_available(grass_condition: Dict[str, Any]) -> bool:
+    condition = str(grass_condition.get("condition") or "").strip().lower()
+    valid_percent = safe_float(grass_condition.get("valid_percent"), 0.0)
+
+    if condition == "unknown":
+        return False
+
+    if valid_percent is not None and valid_percent < 5.0:
+        return False
+
+    return True
+
+
 def extract_next_irrigation(sprinkler: Dict[str, Any]) -> Any:
     raw = sprinkler.get("raw") if is_record(sprinkler.get("raw")) else {}
 
@@ -59,7 +72,6 @@ def extract_next_irrigation(sprinkler: Dict[str, Any]) -> Any:
     if next_run:
         return next_run
 
-    # Try timeline-style structures.
     for key in [
         "timeline",
         "upcoming_timeline",
@@ -130,33 +142,34 @@ def classify_lawn_need(
     rain_probability: float,
     temp_f: Optional[float],
     humidity: Optional[float],
+    lawn_analysis_available: bool = True,
 ) -> Dict[str, Any]:
     heat_stress = bool(temp_f is not None and temp_f >= 88)
     extreme_heat = bool(temp_f is not None and temp_f >= 94)
     low_humidity = bool(humidity is not None and humidity <= 40)
 
-    # Higher means more irrigation pressure.
+    if not lawn_analysis_available:
+        return {
+            "need_score": 0.0,
+            "need_level": "unknown",
+            "heat_stress": heat_stress,
+            "extreme_heat": extreme_heat,
+            "low_humidity": low_humidity,
+        }
+
     need_score = 0.0
 
-    # Grass score: lower score means higher need.
     need_score += (1.0 - grass_score) * 0.42
-
-    # Dryness index: direct pressure.
     need_score += dryness_index * 0.32
 
-    # Heat raises need.
     if heat_stress:
         need_score += 0.12
     if extreme_heat:
         need_score += 0.08
-
-    # Low humidity adds stress.
     if low_humidity:
         need_score += 0.06
 
-    # Rain reduces need.
     need_score -= rain_probability * 0.45
-
     need_score = clamp(need_score, 0.0, 1.0)
 
     if need_score >= 0.7:
@@ -189,8 +202,15 @@ def evaluate_environment(
     sprinkler = sprinkler or {}
     rain_detection = rain_detection or {}
 
+    lawn_analysis_available = is_lawn_analysis_available(grass_condition)
+
     grass_score = normalize_grass_score(grass_condition.get("score"))
     dryness_index = normalize_dryness(grass_condition.get("dryness_index"))
+
+    if not lawn_analysis_available:
+        grass_score = 0.5
+        dryness_index = 0.5
+
     rain_probability = normalize_rain_probability(weather.get("rain_chance"))
 
     temp_f = safe_float(weather.get("temp"))
@@ -210,6 +230,7 @@ def evaluate_environment(
         rain_probability=rain_probability,
         temp_f=feels_like_f if feels_like_f is not None else temp_f,
         humidity=humidity,
+        lawn_analysis_available=lawn_analysis_available,
     )
 
     recommendation = "monitor_lawn"
@@ -219,18 +240,15 @@ def evaluate_environment(
     safety = {
         "auto_execute_allowed": False,
         "requires_user_approval": True,
-        "reason": "Environmental recommendations are advisory unless explicitly approved.",
+        "reason": "Environmental decisions are advisory and require operator approval before hardware action.",
     }
 
-    # ----------------------------------------------------
-    # Highest-priority: sprinkler is already running.
-    # ----------------------------------------------------
     if irrigation_context["running"]:
-        if rain_probability >= 0.55:
+        if rain_probability >= 0.55 or camera_rain_detected:
             recommendation = "stop_or_delay_irrigation"
             confidence = "high"
             reason = (
-                "Sprinkler is running while rain probability is elevated. "
+                "Sprinkler is running while rain probability or camera wet-surface evidence is elevated. "
                 "Orion recommends stopping or delaying irrigation to avoid unnecessary watering."
             )
         elif lawn_need["need_level"] in {"high", "moderate"}:
@@ -247,17 +265,25 @@ def evaluate_environment(
                 "Sprinkler is running, but current lawn and weather indicators do not show urgent watering need."
             )
 
-    # ----------------------------------------------------
-    # Rain dominates irrigation decisions.
-    # ----------------------------------------------------
     elif rain_probability >= 0.7:
         recommendation = "delay_irrigation"
         confidence = "high"
 
-        if camera_rain_detected:
+        if camera_rain_detected and not lawn_analysis_available:
+            reason = (
+                "Rain probability is high and the environmental camera shows rain or wet-surface evidence. "
+                "Lawn condition is unavailable due to low light or limited visible grass. "
+                "Delay irrigation and continue monitoring."
+            )
+        elif camera_rain_detected:
             reason = (
                 "Rain probability is high and the environmental camera shows rain or wet-surface evidence. "
                 "Delay irrigation and continue monitoring lawn condition."
+            )
+        elif not lawn_analysis_available:
+            reason = (
+                "Rain probability is high. Lawn condition is unavailable due to low light or limited visible grass. "
+                "Delay irrigation and continue monitoring."
             )
         else:
             reason = (
@@ -269,10 +295,21 @@ def evaluate_environment(
         recommendation = "delay_irrigation"
         confidence = "high" if camera_rain_detected else "medium"
 
-        if camera_rain_detected:
+        if camera_rain_detected and not lawn_analysis_available:
+            reason = (
+                "Rain is possible and the environmental camera shows rain or wet-surface evidence. "
+                "Lawn condition is unavailable due to low light or limited visible grass. "
+                "Delay irrigation and continue monitoring."
+            )
+        elif camera_rain_detected:
             reason = (
                 "Rain is possible and the environmental camera shows rain or wet-surface evidence. "
                 "Delay irrigation and monitor whether rainfall improves lawn condition."
+            )
+        elif not lawn_analysis_available:
+            reason = (
+                "Rain is possible. Lawn condition is unavailable due to low light or limited visible grass. "
+                "Delay irrigation and continue monitoring."
             )
         else:
             reason = (
@@ -280,9 +317,14 @@ def evaluate_environment(
                 "Delay irrigation and monitor whether rainfall improves lawn condition."
             )
 
-    # ----------------------------------------------------
-    # Healthy / low need.
-    # ----------------------------------------------------
+    elif not lawn_analysis_available:
+        recommendation = "monitor_lawn"
+        confidence = "medium"
+        reason = (
+            "Lawn condition is unavailable due to low light or limited visible grass. "
+            "Continue monitoring and recheck during daylight before making irrigation decisions from camera data."
+        )
+
     elif lawn_need["need_level"] == "minimal":
         recommendation = "no_irrigation_needed"
         confidence = "high"
@@ -297,9 +339,6 @@ def evaluate_environment(
             "Grass condition shows mild or limited stress. Continue monitoring before watering."
         )
 
-    # ----------------------------------------------------
-    # Moderate need.
-    # ----------------------------------------------------
     elif lawn_need["need_level"] == "moderate":
         recommendation = "monitor_lawn"
         confidence = "medium"
@@ -315,9 +354,6 @@ def evaluate_environment(
                 "Consider scheduling irrigation if conditions do not improve."
             )
 
-    # ----------------------------------------------------
-    # High need.
-    # ----------------------------------------------------
     elif lawn_need["need_level"] == "high":
         if irrigation_context["next_irrigation"]:
             recommendation = "monitor_scheduled_irrigation"
@@ -355,6 +391,7 @@ def evaluate_environment(
             "humidity": humidity,
             "lawn_need_score": lawn_need["need_score"],
             "lawn_need_level": lawn_need["need_level"],
+            "lawn_analysis_available": lawn_analysis_available,
             "heat_stress": lawn_need["heat_stress"],
             "extreme_heat": lawn_need["extreme_heat"],
             "low_humidity": lawn_need["low_humidity"],
