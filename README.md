@@ -9,10 +9,11 @@ The system runs on NVIDIA Jetson edge hardware and uses Docker Compose to orches
 - Mosquitto MQTT broker
 - AI-assisted monitoring and recommendation loop
 - environmental vision node proxy
+- deterministic environmental decision engine
 
 Orion integrates with Raspberry Pi field controllers, ESP32 relay nodes, and a Raspberry Pi Zero 2 W environmental camera node using REST APIs, MQTT messaging, WebRTC video streaming, deterministic visual analysis, and distributed health monitoring.
 
-Unlike a simulated dashboard, Orion interacts with real physical systems and exposes live operational state, hardware faults, environmental context, visual lawn condition data, and safe manual controls through one unified dashboard.
+Unlike a simulated dashboard, Orion interacts with real physical systems and exposes live operational state, hardware faults, environmental context, visual lawn condition data, visual rain / wet-surface evidence, and safe manual controls through a unified dashboard.
 
 ---
 
@@ -25,22 +26,28 @@ Current integrated subsystems:
 - HVAC controller
 - irrigation controller
 - environmental vision node
+- environmental recommendation engine
 
 Current platform capabilities:
 
 - Docker Compose deployment on NVIDIA Jetson
 - Next.js operational dashboard
+- dedicated `/vision` detail page
+- compact main dashboard summary cards
 - Flask backend API
 - Mosquitto MQTT broker
 - local AI-assisted monitoring loop
 - HVAC controller integration
 - sprinkler / irrigation controller integration
 - environmental camera integration
-- embedded WebRTC stream inside the Orion dashboard
+- embedded WebRTC camera stream
 - browser recording and snapshot controls
 - IMX708 autofocus control
 - visual lawn / grass condition analysis
 - grass health score and dryness index reporting
+- visual rain / wet-surface evidence detection
+- weather + camera + irrigation decision logic
+- low-light lawn analysis handling
 - Raspberry Pi field-controller layer
 - Raspberry Pi Zero 2 W vision-node layer
 - ESP32 relay-node layer
@@ -66,6 +73,7 @@ Orion V2 demonstrates engineering across multiple layers:
 - REST API integration
 - WebRTC video streaming
 - deterministic OpenCV-based visual analysis
+- camera-assisted environmental monitoring
 - Raspberry Pi field-controller integration
 - Raspberry Pi Zero 2 W camera-node integration
 - IMX708 camera integration
@@ -73,6 +81,7 @@ Orion V2 demonstrates engineering across multiple layers:
 - HVAC and irrigation automation
 - environmental monitoring
 - visual lawn condition analysis
+- visual rain / wet-surface evidence detection
 - Dockerized edge deployment
 - container orchestration with Docker Compose
 - fault detection and operational visibility
@@ -122,6 +131,7 @@ A thermostat field controller was intentionally powered down to validate Orion's
 │  ├── Next.js Dashboard                                   │
 │  ├── Flask Backend API                                   │
 │  ├── Mosquitto MQTT Broker                               │
+│  ├── Environmental Decision Engine                       │
 │  └── AI-Assisted Monitoring / Recommendation Loop        │
 └───────────────────────────┬──────────────────────────────┘
                             │
@@ -157,7 +167,7 @@ A thermostat field controller was intentionally powered down to validate Orion's
 │  ├── Autofocus Control                                   │
 │  ├── Snapshot Endpoint                                   │
 │  ├── Browser Recording Support                           │
-│  ├── Visual Lawn Condition Analysis                      │
+│  ├── Lightweight Visual Analysis                         │
 │  ├── Health / Fault Status API                           │
 │  └── systemd Recovery                                    │
 └───────────────────────────┬──────────────────────────────┘
@@ -166,24 +176,58 @@ A thermostat field controller was intentionally powered down to validate Orion's
                             │
 ┌───────────────────────────▼──────────────────────────────┐
 │                  Orion Dashboard                         │
-│  Embedded Environmental Stream + Lawn Condition Telemetry │
+│                                                          │
+│  Main Dashboard                                          │
+│  ├── Compact command-center summary cards                │
+│  └── High-level AI / HVAC / irrigation / vision status   │
+│                                                          │
+│  /vision Detail Page                                     │
+│  ├── Live camera stream                                  │
+│  ├── Vision node health                                  │
+│  ├── Lawn condition analysis                             │
+│  ├── Visual rain / wet-surface evidence                  │
+│  └── Environmental irrigation recommendation             │
 └──────────────────────────────────────────────────────────┘
 ```
 
 Orion separates high-level monitoring and orchestration from field-level hardware execution.
 
-The Jetson hosts the main application layer. Raspberry Pi field controllers manage device behavior and safety logic close to the equipment. ESP32 nodes handle relay-level control, telemetry, heartbeat publishing, and failsafe behavior. The Raspberry Pi Zero 2 W vision node provides environmental video, camera telemetry, and visual lawn condition analysis as a first-class Orion subsystem.
+The Jetson hosts the main application layer, dashboard, backend APIs, AI-assisted monitoring, and environmental recommendation logic. Raspberry Pi field controllers manage device behavior and safety logic close to the equipment. ESP32 nodes handle relay-level control, telemetry, heartbeat publishing, and failsafe behavior. The Raspberry Pi Zero 2 W vision node provides environmental video, camera telemetry, and lightweight visual analysis as a first-class Orion subsystem.
+
+---
+
+## Main Dashboard and Detail Pages
+
+Orion now separates the main dashboard from detailed subsystem views.
+
+The main dashboard acts as a compact command center. It provides high-level cards for system health, AI state, HVAC, irrigation, weather, and environmental vision.
+
+The `/vision` detail page provides a dedicated environmental vision workspace with:
+
+- live WebRTC camera feed
+- camera health telemetry
+- autofocus controls
+- browser recording
+- snapshot capture
+- visual lawn condition analysis
+- visual rain / wet-surface evidence
+- weather context
+- irrigation context
+- environmental decision output
+
+This keeps the main dashboard clean while still providing deep operational visibility for the environmental camera subsystem.
 
 ---
 
 ## Integrated Subsystems
 
-Orion currently integrates three major hardware-facing subsystems:
+Orion currently integrates four major hardware-facing or system-facing subsystems:
 
 ```txt
 HVAC Node
 Irrigation Node
 Environmental Vision Node
+Environmental Decision Engine
 ```
 
 Each subsystem exposes operational state, health information, and fault visibility to the Orion dashboard.
@@ -220,7 +264,7 @@ The irrigation controller provides:
 The environmental vision node provides:
 
 - live WebRTC video stream
-- embedded Orion dashboard viewer
+- dedicated Orion `/vision` detail page
 - auto-connect stream behavior
 - browser recording controls
 - snapshot support
@@ -231,9 +275,35 @@ The environmental vision node provides:
 - grass health score
 - dryness index
 - green / dry tone percentage reporting
+- visual rain / wet-surface evidence detection
 - online/offline state
 - fault visibility
 - systemd-managed recovery on the Pi Zero 2 W
+
+### Environmental Decision Engine
+
+The environmental decision engine combines:
+
+- weather conditions
+- rain probability
+- camera rain / wet-surface evidence
+- lawn condition score
+- dryness index
+- irrigation schedule
+- sprinkler runtime state
+- low-light analysis availability
+
+It produces a structured recommendation such as:
+
+```txt
+Delay irrigation
+Monitor lawn
+No irrigation needed
+Consider irrigation
+Stop or delay irrigation
+```
+
+The decision engine is deterministic and advisory. Hardware action still requires approval unless explicitly configured for safe automatic execution.
 
 ---
 
@@ -241,9 +311,9 @@ The environmental vision node provides:
 
 The Orion Vision Node is an environmental camera subsystem built around a Raspberry Pi Zero 2 W and an IMX708 camera module.
 
-The node runs independently as a systemd-managed service on the Pi Zero 2 W and exposes local APIs for status, focus control, snapshots, camera restart, WebRTC stream negotiation, and visual lawn condition analysis.
+The node runs independently as a systemd-managed service on the Pi Zero 2 W and exposes local APIs for status, focus control, snapshots, camera restart, WebRTC stream negotiation, visual lawn analysis, and visual rain / wet-surface detection.
 
-The Jetson-hosted Orion backend proxies the vision node through `/v1/vision/*` API routes, allowing the main Orion dashboard to display camera health, telemetry, snapshots, focus controls, grass condition data, and the embedded WebRTC stream.
+The Jetson-hosted Orion backend proxies the vision node through `/v1/vision/*` API routes, allowing the main dashboard and `/vision` page to display camera health, telemetry, snapshots, focus controls, grass condition data, rain evidence, and the embedded WebRTC stream.
 
 ### Current Vision Node Features
 
@@ -251,7 +321,8 @@ The Jetson-hosted Orion backend proxies the vision node through `/v1/vision/*` A
 - IMX708 camera support
 - Picamera2 camera stack
 - live WebRTC video stream
-- embedded stream inside Orion dashboard
+- dedicated `/vision` detail page
+- embedded stream inside Orion dashboard flow
 - auto-connect stream behavior
 - browser-side recording
 - snapshot capture
@@ -266,13 +337,14 @@ The Jetson-hosted Orion backend proxies the vision node through `/v1/vision/*` A
 - green / dry tone percentage analysis
 - dryness index reporting
 - valid analysis area reporting
+- visual rain / wet-surface evidence detection
 - online/offline state
 - fault visibility
 - systemd service recovery
 
 ### Vision Node Dashboard Fields
 
-The Orion dashboard displays:
+The Orion Vision detail page displays:
 
 - camera online state
 - stream readiness
@@ -289,11 +361,18 @@ The Orion dashboard displays:
 - green percentage
 - dry-tone percentage
 - valid analysis area
+- visual rain / wet-surface evidence
+- camera rain confidence
+- wetness score
+- motion score
+- reflection percentage
 - fault status
 - node identifier
 - embedded live WebRTC stream
 
-### Visual Lawn Condition Analysis
+---
+
+## Visual Lawn Condition Analysis
 
 The Orion Vision Node includes lightweight visual lawn condition analysis.
 
@@ -310,22 +389,117 @@ Current output includes:
 - valid analysis percentage
 - explanation of the result
 
-This first version is intentionally lightweight and explainable. It runs on the Raspberry Pi Zero 2 W vision node and reports results back into the Orion dashboard through the backend vision API.
+The system also handles low-light or invalid analysis conditions. If the camera cannot see enough valid grass-like pixels, Orion marks the lawn analysis as unavailable instead of treating the result as a bad lawn condition.
+
+Example low-light behavior:
+
+```txt
+Lawn condition unavailable due to low light or limited visible grass.
+Delay irrigation and continue monitoring.
+```
+
+This first version is intentionally lightweight and explainable. It currently runs on the Raspberry Pi Zero 2 W vision node and reports results back into the Orion dashboard through the backend vision API.
 
 Future improvements can move heavier image analysis to the Jetson, improve lawn-region targeting, compare results against weather and watering history, and use the camera to help verify irrigation effectiveness.
 
-### Orion Backend Vision Routes
+---
+
+## Visual Rain / Wet-Surface Evidence
+
+Orion includes camera-assisted visual rain and wet-surface evidence detection.
+
+The environmental camera analyzes a selected outdoor region and looks for signals such as:
+
+- darkened pavement or ground
+- low saturation wet-surface indicators
+- reflections
+- surface smoothness
+- frame-to-frame motion
+- visual wetness score
+
+The system does not treat camera rain detection as perfect ground truth. Instead, camera evidence is used as a supporting signal alongside weather forecast data.
+
+Example behavior:
+
+```txt
+Rain probability: 100%
+Camera wet-surface evidence: detected
+Recommendation: delay irrigation
+```
+
+If weather indicates rain but the camera does not visually confirm rainfall, Orion reports that distinction:
+
+```txt
+Rain probability is high. Delay irrigation and continue monitoring lawn condition.
+Camera has not visually confirmed active rain at this moment.
+```
+
+This makes the system more honest and reliable than relying on either weather data or camera data alone.
+
+---
+
+## Environmental Decision Engine
+
+Orion includes a deterministic environmental decision engine that combines weather, camera, lawn, and irrigation context.
+
+Current inputs include:
+
+- grass condition score
+- dryness index
+- valid lawn analysis area
+- camera rain / wet-surface evidence
+- camera rain confidence
+- rain probability
+- current temperature
+- feels-like temperature
+- humidity
+- sprinkler running state
+- next scheduled irrigation
+- last irrigation hints when available
+- low-light lawn analysis availability
+
+Current decision outputs include:
+
+- recommendation
+- confidence
+- reason
+- safety metadata
+- environmental inputs
+- irrigation context
+- rain detection context
+
+Example output:
+
+```json
+{
+  "recommendation": "delay_irrigation",
+  "confidence": "high",
+  "reason": "Rain probability is high and the environmental camera shows rain or wet-surface evidence. Delay irrigation and continue monitoring lawn condition.",
+  "safety": {
+    "auto_execute_allowed": false,
+    "requires_user_approval": true,
+    "reason": "Environmental decisions are advisory and require operator approval before hardware action."
+  }
+}
+```
+
+The environmental decision engine is deterministic, explainable, and advisory. It is designed to support safe operator decisions before any hardware action is applied.
+
+---
+
+## Orion Backend Vision Routes
 
 ```txt
 GET  /v1/vision/status
 GET  /v1/vision/snapshot
 GET  /v1/vision/grass-condition
+GET  /v1/vision/rain-detection
 POST /v1/vision/focus
 POST /v1/vision/restart-camera
 POST /v1/vision/offer
 ```
 
-### Vision Node Local Routes
+## Vision Node Local Routes
 
 ```txt
 GET  /api/status
@@ -336,16 +510,17 @@ POST /api/camera/focus
 POST /api/camera/restart
 GET  /api/snapshot
 GET  /api/grass-condition
+GET  /api/rain-detection
 POST /offer
 ```
 
-### Vision Node Environment Variables
+## Vision Node Environment Variables
 
 The Orion backend uses the following Docker environment variables to locate the vision node:
 
 ```txt
 VISION_NODE_URL=http://192.168.7.238:5000
-VISION_TIMEOUT=3.0
+VISION_TIMEOUT=5.0
 ```
 
 Example Docker Compose backend environment section:
@@ -353,25 +528,8 @@ Example Docker Compose backend environment section:
 ```yaml
 environment:
   VISION_NODE_URL: http://192.168.7.238:5000
-  VISION_TIMEOUT: "3.0"
+  VISION_TIMEOUT: "5.0"
 ```
-
-### Future Vision AI Direction
-
-The vision node is intentionally lightweight. It handles camera capture, WebRTC streaming, focus control, status, snapshots, and first-pass deterministic visual analysis. Heavier analysis is intended to run on the Jetson.
-
-Planned future capabilities include:
-
-- improved lawn-region targeting and calibration
-- comparison against weather and watering history
-- irrigation verification through snapshots
-- watering restriction awareness
-- bird detection
-- species recognition
-- auto tracking
-- digital zoom
-- environmental event logging
-- AI-assisted outdoor condition summaries
 
 ---
 
@@ -417,17 +575,15 @@ docker compose restart
 docker compose down
 ```
 
-The Jetson runs the dashboard, backend, AI monitoring loop, and MQTT broker. Raspberry Pi controllers, ESP32 nodes, and the Pi Zero vision node continue handling hardware-facing logic close to the equipment.
-
-This makes Orion easier to restart, reproduce, deploy, and document compared to running each service manually.
+The Jetson runs the dashboard, backend, AI monitoring loop, environmental decision engine, and MQTT broker. Raspberry Pi controllers, ESP32 nodes, and the Pi Zero vision node continue handling hardware-facing logic close to the equipment.
 
 ---
 
 ## Engineering Summary
 
-Orion V2 demonstrates the ability to design and build a complete distributed automation platform that combines frontend development, backend APIs, embedded systems, hardware control, environmental vision, WebRTC streaming, deterministic visual analysis, AI-assisted decision logic, Dockerized deployment, and real-world fault handling.
+Orion V2 demonstrates the ability to design and build a complete distributed automation platform that combines frontend development, backend APIs, embedded systems, hardware control, environmental vision, WebRTC streaming, deterministic visual analysis, environmental decision logic, AI-assisted reasoning, Dockerized deployment, and real-world fault handling.
 
-This project goes beyond a normal dashboard demo. Orion monitors real hardware, tracks live device state, uses AI-assisted recommendations, detects offline nodes, handles weather-aware irrigation decisions, displays environmental camera state, reports visual lawn condition, and separates manual control from automatic execution.
+This project goes beyond a normal dashboard demo. Orion monitors real hardware, tracks live device state, detects offline nodes, handles weather-aware irrigation decisions, displays environmental camera state, reports visual lawn condition, detects visual rain / wet-surface evidence, handles low-light analysis limits, and separates manual control from automatic execution.
 
 Key engineering areas:
 
@@ -440,6 +596,7 @@ Key engineering areas:
 - WebRTC stream integration
 - browser recording support
 - OpenCV-based visual analysis
+- environmental decision logic
 - local AI / LLM integration
 - Raspberry Pi field-controller design
 - Raspberry Pi Zero 2 W camera-node design
@@ -465,12 +622,12 @@ Key engineering areas:
 Orion V2 was built to answer a practical engineering question:
 
 ```txt
-Can a local edge automation platform monitor real devices, understand system state, detect hardware problems, stream environmental context, evaluate lawn condition, and recommend safer actions before controlling equipment?
+Can a local edge automation platform monitor real devices, understand system state, detect hardware problems, stream environmental context, evaluate lawn condition, detect rain evidence, and recommend safer actions before controlling equipment?
 ```
 
 Orion is designed around that goal.
 
-It does not blindly execute commands. It monitors system state, detects faults, displays recommendations, streams environmental camera data, reports visual lawn condition, and gives the user visibility into what the automation layer is doing.
+It does not blindly execute commands. It monitors system state, detects faults, displays recommendations, streams environmental camera data, reports visual lawn condition, reports camera rain evidence, and gives the user visibility into what the automation layer is doing.
 
 ---
 
@@ -485,10 +642,11 @@ Orion V2 is different because it combines:
 - environmental vision
 - embedded WebRTC camera streaming
 - visual lawn condition analysis
+- visual rain / wet-surface evidence detection
+- weather-aware irrigation reasoning
 - AI-assisted recommendations
 - manual and automatic execution modes
 - fault-aware behavior
-- weather-aware irrigation logic
 - system health monitoring
 - field-controller separation
 - persistent state
@@ -518,9 +676,11 @@ It includes:
 - device status aggregation
 - environmental camera proxy APIs
 - visual lawn condition proxy API
+- visual rain evidence proxy API
+- environmental decision engine
 - weather-aware automation logic
 
-The dashboard provides a live view of system health, device state, environmental camera stream, visual lawn condition, automation recommendations, and manual controls.
+The dashboard provides a live view of system health, device state, environmental camera stream, visual lawn condition, visual rain evidence, automation recommendations, and manual controls.
 
 ### Orion Backend
 
@@ -531,6 +691,8 @@ The backend is responsible for:
 - routing device commands
 - proxying vision-node status and WebRTC offers
 - proxying grass condition analysis results
+- proxying visual rain evidence results
+- running deterministic environmental decision logic
 - running AI-assisted decision logic
 - storing persistent memory/state
 - tracking system health
@@ -542,13 +704,15 @@ The backend is responsible for:
 
 The frontend is responsible for:
 
-- displaying live automation state
+- displaying compact main dashboard status
+- exposing dedicated subsystem detail pages
 - showing system metrics
 - showing AI recommendations
 - showing HVAC status
 - showing sprinkler status
 - showing environmental camera status
 - showing visual lawn condition analysis
+- showing visual rain / wet-surface evidence
 - embedding the WebRTC camera stream
 - providing recording and snapshot controls
 - providing manual control inputs
@@ -598,9 +762,11 @@ The Raspberry Pi Zero 2 W vision node is responsible for:
 - reporting live camera state
 - handling autofocus commands
 - serving snapshots
-- analyzing visual lawn condition
+- supporting lightweight visual analysis
 - supporting browser recording through the dashboard
 - recovering through systemd after reboot or service failure
+
+Long term, the Pi Zero is intended to remain a lightweight camera node while heavier analysis moves to the Jetson.
 
 ### ESP32 Edge Nodes
 
@@ -624,7 +790,7 @@ Orion provides centralized monitoring, AI-assisted recommendations, and operator
 
 This separation keeps hardware execution close to the equipment and prevents the dashboard or AI layer from becoming a single point of failure.
 
-The environmental vision node follows the same distributed philosophy. Camera capture, stream production, and lightweight visual lawn analysis run locally on the Pi Zero 2 W, while Orion provides centralized visibility, control, and future AI processing.
+The environmental vision node follows the same distributed philosophy. Camera capture and stream production run locally on the Pi Zero 2 W, while Orion provides centralized visibility, decision logic, and future AI processing.
 
 ---
 
@@ -653,7 +819,7 @@ Raspberry Pi Zero 2 W Vision Node
         ↓
 IMX708 Camera Module
         ↓
-Environmental Camera Stream + Lawn Condition Analysis
+Environmental Camera Stream
 ```
 
 Current hardware integrations include:
@@ -682,8 +848,8 @@ Orion provides a live operational dashboard displaying:
 - weather conditions
 - HVAC state
 - irrigation schedule
-- environmental camera stream
-- visual lawn condition analysis
+- environmental vision summary
+- environmental decision output
 - vision node health
 - system health
 - CPU / memory / GPU monitoring
@@ -694,6 +860,23 @@ Orion provides a live operational dashboard displaying:
 - fault state
 - controller and node status
 - manual controls
+
+### Dedicated Vision Detail Page
+
+The `/vision` page provides a dedicated operational view for the environmental camera subsystem.
+
+It includes:
+
+- live environmental camera feed
+- stream connection status
+- recording and snapshot controls
+- camera health
+- focus state
+- lawn condition analysis
+- visual rain / wet-surface evidence
+- weather context
+- irrigation context
+- environmental decision output
 
 ### Distributed Device Communication
 
@@ -754,6 +937,7 @@ Tracked states may include:
 - lens position
 - grass condition score
 - dryness index
+- visual rain evidence
 - controller health
 - fault state
 - stale data conditions
@@ -779,37 +963,18 @@ When a fault is active, Orion changes the system state and recommendation instea
 
 ### Weather-Aware Irrigation
 
-Orion can use weather conditions to influence irrigation behavior.
+Orion can use weather conditions, visual rain evidence, lawn condition, and irrigation state to influence irrigation behavior.
 
 Example behavior:
 
 ```txt
-Rain likely
+Rain probability is high
+Camera shows wet-surface evidence
 Irrigation delayed
 No sprinkler action needed
 ```
 
 This helps prevent unnecessary watering and demonstrates state-aware automation logic.
-
-### Environmental Vision
-
-Orion can display a live environmental camera stream directly in the dashboard.
-
-Current environmental vision capabilities include:
-
-- live WebRTC stream
-- auto-connected dashboard viewer
-- browser recording
-- snapshots
-- autofocus controls
-- visual lawn / grass condition analysis
-- grass health score
-- dryness index
-- green / dry tone percentage reporting
-- camera health state
-- fault visibility
-
-This adds visual environmental context to the same platform that already monitors HVAC, irrigation, weather, and hardware state.
 
 ---
 
@@ -883,7 +1048,7 @@ Sprinkler state may include:
 
 ## Environmental Vision Automation
 
-The environmental vision node currently focuses on live visibility, recording, snapshots, telemetry, and visual lawn condition analysis.
+The environmental vision node currently focuses on live visibility, recording, snapshots, telemetry, visual lawn condition analysis, and visual rain / wet-surface evidence.
 
 Current supported behavior:
 
@@ -898,9 +1063,13 @@ Current supported behavior:
 - capture snapshots through the Orion backend
 - analyze visual lawn condition from the environmental camera
 - report grass condition, health score, dryness index, green percentage, dry tones, and valid analysis area
+- detect visual rain / wet-surface evidence
+- combine camera evidence with weather and irrigation schedule context
+- handle low-light lawn analysis honestly
 
 Planned future behavior:
 
+- move heavier image analysis from the Pi Zero to the Jetson
 - detect birds or motion events
 - classify bird species
 - auto-track and digitally zoom on subjects
@@ -937,6 +1106,7 @@ Orion includes an AI-assisted monitoring layer capable of evaluating live system
 Example behaviors include:
 
 - delaying irrigation when rain is likely
+- using camera rain evidence to strengthen weather decisions
 - monitoring system health
 - explaining current device state
 - summarizing telemetry
@@ -958,10 +1128,16 @@ Recent reliability work included:
 - Docker Compose deployment support for the main Orion platform
 - containerized frontend, backend, and MQTT broker
 - integrated Orion Vision Node environmental camera
-- embedded WebRTC stream in the Orion dashboard
+- dedicated `/vision` detail page
+- simplified main dashboard Vision summary card
+- embedded WebRTC stream in the Orion dashboard flow
 - browser recording and snapshot controls
 - auto-connect vision stream behavior
 - visual lawn condition analysis from the environmental camera
+- visual rain / wet-surface evidence detection
+- low-light lawn analysis handling
+- environmental decision engine
+- cached environmental state usage to reduce dashboard load
 - refactored the project into a cleaner public repository structure
 - fixed real sprinkler schedule synchronization between Orion and the Raspberry Pi controller
 - added safer HVAC state handling so relay feedback cannot incorrectly re-command equipment
@@ -987,6 +1163,7 @@ Key reliability concepts include:
 - fault visibility
 - camera-node reachability checks
 - visual condition telemetry
+- low-light analysis handling
 - compressor lockout protection
 - minimum equipment on/off timers
 - fan post-run handling
@@ -1008,6 +1185,7 @@ Important safety goals include:
 - provide manual override behavior
 - preserve runtime state where useful
 - avoid unsafe automation when device state is unknown
+- avoid treating low-light visual analysis as reliable lawn data
 
 The Raspberry Pi field controllers continue operating locally even if the Jetson application layer becomes unavailable.
 
@@ -1028,6 +1206,7 @@ The environmental camera node also runs independently as a systemd service so ca
 - runtime state management
 - device control routing
 - vision-node proxy APIs
+- environmental decision engine
 - system metrics collection
 - persistent memory/session storage
 
@@ -1036,10 +1215,13 @@ The environmental camera node also runs independently as a systemd service so ca
 - React
 - Next.js
 - TypeScript
+- compact command dashboard
+- dedicated subsystem detail pages
 - real-time telemetry polling
 - embedded WebRTC viewer
 - browser recording controls
 - visual lawn condition display
+- visual rain evidence display
 - component-based UI architecture
 - assistant interface
 - saved chat display
@@ -1051,6 +1233,7 @@ The environmental camera node also runs independently as a systemd service so ca
 - structured decision output
 - AI-assisted recommendations
 - deterministic safety rules
+- deterministic environmental decision engine
 - explainable decision reasons
 - automation state loop
 - environmental image analysis roadmap
@@ -1098,10 +1281,14 @@ server/
 │   ├── ai/
 │   ├── core/
 │   ├── tools/
+│   │   ├── environment.py
+│   │   └── weather.py
 │   └── app.py
 └── frontend/
     └── app/
-        └── page.tsx
+        ├── page.tsx
+        └── vision/
+            └── page.tsx
 
 field-controller/
 ├── hvac-controller/
@@ -1158,6 +1345,7 @@ Example vision endpoints:
 GET  /v1/vision/status
 GET  /v1/vision/snapshot
 GET  /v1/vision/grass-condition
+GET  /v1/vision/rain-detection
 POST /v1/vision/focus
 POST /v1/vision/restart-camera
 POST /v1/vision/offer
@@ -1171,25 +1359,29 @@ These endpoints allow the dashboard, assistant, and automation logic to interact
 
 ```json
 {
-  "ai": "active",
-  "fault": false,
-  "cpu": 3.4,
-  "memory": 16.5,
-  "gpu": 0.0,
-  "last_decision": {
-    "action": "observe",
-    "reason": "System stable"
+  "ai_status": "active",
+  "fault": null,
+  "cpu": 4.1,
+  "memory": 38.0,
+  "weather": {
+    "online": true,
+    "temp": 83.0,
+    "rain_chance": 100
   },
   "sprinkler": {
     "online": true,
     "running": false,
-    "active_zone": null
+    "next_run": "6:00 AM · 10 min"
   },
-  "hvac": {
-    "online": true,
-    "mode": "cool",
-    "current_temp": 76.6,
-    "setpoint": 72
+  "grass_condition": {
+    "condition": "fair",
+    "score": 45,
+    "dryness_index": 0.255
+  },
+  "environment": {
+    "recommendation": "delay_irrigation",
+    "confidence": "high",
+    "reason": "Rain probability is high and the environmental camera shows rain or wet-surface evidence. Delay irrigation and continue monitoring lawn condition."
   }
 }
 ```
@@ -1237,6 +1429,47 @@ These endpoints allow the dashboard, assistant, and automation logic to interact
 
 ---
 
+## Example Visual Rain Evidence Payload
+
+```json
+{
+  "ok": true,
+  "rain_detected": true,
+  "confidence": "medium",
+  "wetness_score": 0.34,
+  "motion_score": 0.016,
+  "dark_percent": 37.6,
+  "reflection_percent": 3.8,
+  "reason": "Camera evidence suggests wet outdoor surfaces or active rainfall."
+}
+```
+
+---
+
+## Example Environmental Decision Payload
+
+```json
+{
+  "recommendation": "delay_irrigation",
+  "confidence": "high",
+  "reason": "Rain probability is high and the environmental camera shows rain or wet-surface evidence. Delay irrigation and continue monitoring lawn condition.",
+  "inputs": {
+    "grass_score": 0.45,
+    "dryness_index": 0.255,
+    "rain_probability": 1.0,
+    "camera_rain_detected": true,
+    "camera_rain_confidence": "medium",
+    "lawn_analysis_available": true
+  },
+  "safety": {
+    "auto_execute_allowed": false,
+    "requires_user_approval": true
+  }
+}
+```
+
+---
+
 ## Example Fault Payload
 
 ```json
@@ -1252,22 +1485,6 @@ These endpoints allow the dashboard, assistant, and automation logic to interact
     "title": "Investigate fault",
     "reason": "ESP32 sprinkler node offline. Review logs before running automation."
   }
-}
-```
-
----
-
-## Example AI Decision Payload
-
-```json
-{
-  "action": "delay_irrigation",
-  "reason": "Rain likelihood is high. Skip or delay the next irrigation run.",
-  "params": {
-    "rain_likelihood": 100
-  },
-  "execution": "monitor_only",
-  "safety": "no_hardware_action_needed"
 }
 ```
 
@@ -1318,7 +1535,9 @@ Review environmental condition telemetry
         ↓
 Apply deterministic safety checks
         ↓
-Ask AI assistant for recommendation
+Run environmental decision engine
+        ↓
+Ask AI assistant for explanation / recommendation
         ↓
 Parse structured decision
         ↓
@@ -1469,7 +1688,7 @@ WEATHER_LOCATION=Brandon,FL
 MQTT_HOST=localhost
 MQTT_PORT=1883
 VISION_NODE_URL=http://192.168.7.238:5000
-VISION_TIMEOUT=3.0
+VISION_TIMEOUT=5.0
 ```
 
 Actual variables may vary depending on local, Docker, Jetson, or field-controller deployment.
@@ -1517,7 +1736,7 @@ Captures IMX708 camera stream
         ↓
 Serves WebRTC stream + status API
         ↓
-Analyzes lightweight visual lawn condition
+Serves lightweight visual analysis endpoints
         ↓
 Orion backend proxies stream/status/analysis into dashboard
 ```
@@ -1529,6 +1748,7 @@ Recommended operational notes:
 - use systemd so the camera node starts after reboot
 - keep heavy AI processing on the Jetson rather than the Pi Zero
 - use the Pi Zero as a lightweight camera and telemetry node
+- avoid excessive polling against the Pi Zero camera service
 
 ---
 
@@ -1567,6 +1787,7 @@ Containerized services include:
 - frontend dashboard
 - backend API
 - MQTT broker
+- environmental decision engine
 - AI-assisted monitoring loop
 - vision-node backend proxy
 
@@ -1580,7 +1801,7 @@ This keeps hardware-facing logic close to the equipment while the Jetson provide
 
 The environmental vision node runs independently on Raspberry Pi Zero 2 W using a systemd-managed service.
 
-This keeps camera capture, stream generation, and lightweight visual analysis local to the camera hardware while Orion handles dashboard integration, recording controls, snapshots, telemetry display, and future AI processing.
+This keeps camera capture and stream generation local to the camera hardware while Orion handles dashboard integration, recording controls, snapshots, telemetry display, environmental decisions, and future AI processing.
 
 Example deployment options:
 
@@ -1619,6 +1840,7 @@ Runs Docker Compose stack
 Runs Orion backend
 Runs Orion frontend
 Runs Mosquitto MQTT broker
+Runs environmental decision engine
 Runs AI-assisted monitoring loop
 Monitors Raspberry Pi field controllers
 Monitors Pi Zero environmental camera node
@@ -1637,6 +1859,7 @@ Orion V2 demonstrates the ability to build a complete connected system across mu
 - AI-assisted automation
 - WebRTC video integration
 - OpenCV visual analysis
+- environmental decision logic
 - Raspberry Pi field controllers
 - Raspberry Pi Zero camera node
 - ESP32 hardware nodes
@@ -1645,6 +1868,7 @@ Orion V2 demonstrates the ability to build a complete connected system across mu
 - device telemetry
 - environmental camera telemetry
 - visual lawn condition telemetry
+- visual rain evidence telemetry
 - relay control
 - persistent state
 - fault handling
@@ -1668,6 +1892,7 @@ Planned and current reliability goals include:
 - relay feedback validation
 - frame freshness monitoring
 - visual condition monitoring
+- low-light analysis handling
 - fault history
 - automatic recovery attempts
 - systemd service recovery for field controllers
@@ -1684,11 +1909,14 @@ Working features:
 - Docker Compose deployment on NVIDIA Jetson
 - containerized frontend, backend, and MQTT broker
 - Orion dashboard
+- dedicated `/vision` detail page
+- compact main dashboard Vision summary card
 - backend API
 - assistant interface
 - saved chat/session support
 - live system metrics
 - AI-assisted recommendation display
+- environmental decision engine
 - manual and automatic execution mode display
 - autonomous monitoring state
 - HVAC integration support
@@ -1699,6 +1927,8 @@ Working features:
 - snapshot support
 - autofocus control
 - visual lawn condition analysis
+- visual rain / wet-surface evidence detection
+- low-light lawn analysis handling
 - grass health score and dryness index reporting
 - weather-aware irrigation logic
 - fault state display
@@ -1711,6 +1941,7 @@ Working features:
 
 In progress / planned:
 
+- move heavier image analysis to the Jetson
 - stronger automated recovery behavior
 - more detailed event history
 - expanded MQTT topic documentation
@@ -1744,6 +1975,7 @@ Planned improvements include:
 - bird species recognition
 - auto tracking and digital zoom
 - expanded grass condition monitoring and calibration
+- improved visual rain evidence calibration
 - watering restriction awareness
 - irrigation verification from environmental snapshots
 - automated recovery workflows
@@ -1789,7 +2021,7 @@ The platform is intentionally modular so additional field controllers, edge node
 
 Orion V2 started as a practical home automation project and grew into a distributed edge automation platform.
 
-The system connects real HVAC, irrigation, and environmental camera hardware to a central dashboard, adds field-controller separation, integrates ESP32 relay nodes, embeds a WebRTC vision node, reports visual lawn condition, and layers AI-assisted recommendations on top of deterministic safety logic.
+The system connects real HVAC, irrigation, and environmental camera hardware to a central dashboard, adds field-controller separation, integrates ESP32 relay nodes, embeds a WebRTC vision node, reports visual lawn condition, detects visual rain evidence, and layers AI-assisted recommendations on top of deterministic safety logic.
 
 The project demonstrates practical engineering across software, hardware, networking, automation, video streaming, visual analysis, AI-assisted monitoring, and system design.
 
@@ -1882,4 +2114,4 @@ Use at your own risk when controlling real hardware.
 David Echols  
 GitHub: Echo13091
 
-Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Docker Compose deployment, Raspberry Pi field controllers, Raspberry Pi Zero 2 W environmental vision, visual lawn condition analysis, ESP32 hardware nodes, and real home automation equipment.
+Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Docker Compose deployment, Raspberry Pi field controllers, Raspberry Pi Zero 2 W environmental vision, visual lawn condition analysis, visual rain evidence detection, ESP32 hardware nodes, and real home automation equipment.
