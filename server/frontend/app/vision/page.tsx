@@ -976,8 +976,8 @@ export default function VisionPage() {
                 }
               />
               <Field
-                label="Rain Evidence"
-                value={environment?.inputs?.camera_rain_detected ? "Detected" : "Not Confirmed"}
+                label="Visual Rain Evidence"
+                value={environment?.inputs?.camera_rain_detected ? "Detected" : "Not Visually Confirmedly Confirmed"}
                 state={environment?.inputs?.camera_rain_detected ? "warn" : "neutral"}
               />
               <Field
@@ -1178,13 +1178,13 @@ export default function VisionPage() {
           </DetailCard>
 
           <DetailCard
-            title="Rain Evidence"
+            title="Visual Rain Evidence"
             subtitle="Camera-assisted rain and wet-surface detection"
             status={
               rainDetection?.rain_detected
                 ? "Detected"
                 : rainDetection
-                  ? "Not Confirmed"
+                  ? "Not Visually Confirmedly Confirmed"
                   : "Waiting"
             }
             statusState={
@@ -1198,7 +1198,7 @@ export default function VisionPage() {
             <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Rain"
-                value={rainDetection?.rain_detected ? "Detected" : "Not Confirmed"}
+                value={rainDetection?.rain_detected ? "Detected" : "Not Visually Confirmedly Confirmed"}
                 state={rainDetection?.rain_detected ? "warn" : "neutral"}
               />
               <Field

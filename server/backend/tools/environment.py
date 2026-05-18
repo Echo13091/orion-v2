@@ -262,7 +262,7 @@ def evaluate_environment(
         else:
             reason = (
                 "Rain probability is high. Delay irrigation and continue monitoring lawn condition. "
-                "Camera rain evidence is not currently confirming rainfall."
+                "Camera has not visually confirmed active rain at this moment."
             )
 
     elif rain_probability >= 0.45 and lawn_need["need_level"] != "high":

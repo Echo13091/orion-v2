@@ -2960,10 +2960,10 @@ export default function Home() {
                           : "neutral",
                 },
                 {
-                  label: "Rain Evidence",
+                  label: "Visual Rain Evidence",
                   value: system?.environment?.inputs?.camera_rain_detected
                     ? "Detected"
-                    : "Not Visual",
+                    : "Not Visually Confirmed",
                   state: system?.environment?.inputs?.camera_rain_detected
                     ? "warn"
                     : "neutral",
@@ -3040,11 +3040,11 @@ export default function Home() {
                     }
                   />
                   <Field
-                    label="Rain Evidence"
+                    label="Visual Rain Evidence"
                     value={
                       system?.environment?.inputs?.camera_rain_detected
                         ? "Detected"
-                        : "Not Visually Confirmed"
+                        : "Not Visually Confirmedly Confirmed"
                     }
                     state={
                       system?.environment?.inputs?.camera_rain_detected
