@@ -2998,6 +2998,14 @@ export default function Home() {
               ]}
             >
               <div className="space-y-4">
+
+                <a
+                  href="/sprinkler"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-cyan-600 px-4 text-sm font-semibold text-white shadow-lg shadow-cyan-950/25 transition hover:bg-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/20"
+                >
+                  Open Sprinkler Detail Page
+                </a>
+
                 {system?.sprinkler?.running && (
                   <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
                     <div className="flex items-center justify-between gap-3">
