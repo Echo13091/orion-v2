@@ -1,10 +1,10 @@
 # Orion V2 — Distributed Edge Automation Platform
 
-Orion V2 is a local-first distributed edge automation platform for real HVAC, irrigation, weather, thermostat, and environmental vision hardware.
+Orion V2 is a local-first supervisory orchestration platform for real HVAC, irrigation, thermostat, weather, and environmental vision systems.
 
 It runs on NVIDIA Jetson edge hardware using Docker Compose and integrates with Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, REST APIs, WebRTC video streaming, deterministic environmental logic, and AI-assisted operational recommendations.
 
-Orion is not a simulated dashboard. It monitors and coordinates real physical systems.
+Orion is not a simulated dashboard. It supervises real distributed hardware, normalizes telemetry, exposes fault state, and coordinates safe operator-approved actions.
 
 ---
 
@@ -24,7 +24,7 @@ Orion is not a simulated dashboard. It monitors and coordinates real physical sy
 - visual lawn condition analysis
 - visual rain / wet-surface evidence detection
 - weather-aware irrigation decisions
-- thermostat / HVAC node detail page
+- thermostat / HVAC detail page
 - sprinkler / irrigation detail page
 - weather intelligence detail page
 - supervisory decision center
@@ -40,37 +40,37 @@ Orion is not a simulated dashboard. It monitors and coordinates real physical sy
 
 ![Orion Main Dashboard](docs/screenshots/orion-main-dashboard.jpeg)
 
-The main dashboard provides a clean command overview for live system health, current recommendations, subsystem status, automation mode, and assistant interaction.
+Clean command overview for system health, recommendations, subsystem status, automation mode, and assistant interaction.
 
 ### Environmental Vision Node
 
 ![Orion Vision Node](docs/screenshots/orion-vision-node.jpeg)
 
-The Vision page embeds the live environmental camera stream and displays camera health, lawn condition, visual rain evidence, weather context, and irrigation impact.
+Live environmental camera stream with camera health, lawn condition, visual rain evidence, weather context, and irrigation impact.
 
 ### Irrigation Controller
 
 ![Orion Sprinkler Node](docs/screenshots/orion-sprinkler-node.jpeg)
 
-The Sprinkler page shows live irrigation state, active zone status, relay activity, schedule context, and weather-aware recommendations.
+Live irrigation state, active zone status, relay activity, schedule context, and weather-aware recommendations.
 
 ### Weather Intelligence
 
 ![Orion Weather Intelligence](docs/screenshots/orion-weather-intelligence.jpeg)
 
-The Weather page shows outdoor conditions, rain probability, forecast context, and how weather affects automation decisions.
+Outdoor conditions, rain probability, forecast context, and automation impact.
 
-### Supervisory Decision Engine
+### Supervisory Decision Center
 
 ![Orion Decision Center](docs/screenshots/orion-decision-center.jpeg)
 
-The Decision Center displays the current recommendation, decision trace, safety gating, automation mode, command result, and raw decision state.
+Current recommendation, decision trace, safety gating, automation mode, command result, and raw decision state.
 
 ### Thermostat / HVAC Node
 
 ![Orion Thermostat Node](docs/screenshots/orion-thermostat-node.jpeg)
 
-The Thermostat page normalizes live HVAC state from the RPi4 / ESP32 controller and exposes setpoints, cooling state, fan state, humidity, event history, and command logging.
+Normalized HVAC state from the RPi4 / ESP32 controller, including setpoint, cooling state, fan state, humidity, event history, and command logging.
 
 ---
 
@@ -91,14 +91,14 @@ Orion demonstrates engineering across multiple layers:
 - ESP32 relay-node integration
 - HVAC automation
 - irrigation automation
-- camera-assisted environmental monitoring
+- environmental camera monitoring
 - deterministic visual analysis
 - weather-aware decision logic
 - AI-assisted recommendation workflows
 - fault detection and operational visibility
 - safety-aware hardware control
 
-The goal is to show a complete edge automation platform, not a simple relay dashboard.
+The goal is to demonstrate a complete edge automation platform, not a simple relay dashboard.
 
 ---
 
@@ -142,7 +142,7 @@ The goal is to show a complete edge automation platform, not a simple relay dash
 └────────────────────────────────────────────────────────────┘
 ```
 
-Environmental vision runs as a separate distributed subsystem:
+Environmental vision runs as a separate subsystem:
 
 ```txt
 ┌────────────────────────────────────────────────────────────┐
@@ -193,7 +193,7 @@ The dashboard shows:
 - AI status
 - automation mode
 - current recommendation
-- execution control
+- execution controls
 - subsystem summaries
 - assistant interface
 - saved chats
@@ -286,7 +286,7 @@ The HVAC controller provides:
 - heartbeat monitoring
 - fault visibility
 
-The thermostat detail page normalizes HVAC state into a first-class Orion subsystem. Today it can read from the RPi4 / ESP32 HVAC controller. The same model can support future Honeywell / Resideo thermostat integration.
+The thermostat detail page normalizes HVAC state into a first-class Orion subsystem. Today it reads from the RPi4 / ESP32 HVAC controller. The same normalized model can support future Honeywell / Resideo thermostat integration.
 
 ### Irrigation Node
 
@@ -301,7 +301,7 @@ The irrigation controller provides:
 - heartbeat monitoring
 - fault visibility
 
-The sprinkler detail page displays zone timelines, relay activity, schedule state, and weather-aware recommendations.
+The sprinkler detail page displays zone timelines, relay activity, schedule state, controller status, and weather-aware recommendations.
 
 ### Environmental Vision Node
 
@@ -320,7 +320,7 @@ The Vision node provides:
 
 ### Environmental Decision Engine
 
-The decision engine combines:
+The environmental decision engine combines:
 
 - weather conditions
 - rain probability
@@ -362,6 +362,26 @@ The AI layer can:
 - support structured recommendations
 
 The AI does not bypass deterministic safety logic. Hardware actions are routed through the control layer.
+
+---
+
+## Supervisory Orchestration Focus
+
+Orion is designed as a supervisory orchestration layer, not a monolithic replacement for every controller.
+
+Field controllers remain responsible for local device behavior, safety timing, and hardware execution. Orion provides centralized visibility, normalized telemetry, recommendations, command routing, fault awareness, and operator control.
+
+This architecture allows Orion to supervise multiple device types and protocols over time:
+
+- existing Raspberry Pi controllers
+- ESP32 relay nodes
+- thermostat integrations
+- MQTT devices
+- REST-connected services
+- future RS485 / Modbus devices
+- environmental camera nodes
+
+The important design goal is normalization: different hardware backends can feed one consistent Orion model.
 
 ---
 
@@ -759,14 +779,17 @@ Working features:
 
 Planned improvements:
 
-- persistent event log viewer
+- unified device registry
+- shared event timeline
+- command acknowledgment tracking
 - fault history timeline
 - improved AI decision audit trail
-- command acknowledgment tracking
 - controller heartbeat dashboard
 - improved lawn-region targeting and calibration
 - watering restriction awareness
 - irrigation verification from environmental snapshots
+- RS485 / Modbus adapter support
+- additional thermostat adapters
 - automated recovery workflows
 - production Docker hardening
 - persistent Docker volumes
@@ -799,6 +822,7 @@ Orion V2 demonstrates the ability to build a complete connected system across mu
 - fault handling
 - safety-aware decision logic
 - local edge deployment
+- supervisory orchestration
 
 This makes the project relevant to full-stack development, IoT engineering, embedded systems, automation, edge AI, backend API development, computer vision infrastructure, and control-system integration.
 
