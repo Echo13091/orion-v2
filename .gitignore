@@ -55,3 +55,8 @@ server/backend/memory/*.json
 # =========================
 .vscode/
 .idea/
+# Orion local runtime state
+server/backend/data/*.json
+
+# Local frontend environment
+server/frontend/.env.production

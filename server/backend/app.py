@@ -1,6 +1,7 @@
 from threading import Thread
 
 from flask import Flask
+from routes.thermostat_routes import thermostat_bp
 from flask_cors import CORS
 
 from api.chat import register_chat
@@ -12,6 +13,7 @@ from ai.loop import ai_loop
 from ai.llm import warm_model
 
 app = Flask(__name__)
+app.register_blueprint(thermostat_bp)
 
 CORS(
     app,

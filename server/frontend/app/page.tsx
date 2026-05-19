@@ -3265,6 +3265,14 @@ export default function Home() {
               ]}
             >
               <div className="space-y-4">
+
+                <a
+                  href="/thermostat"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-fuchsia-600 px-4 text-sm font-semibold text-white shadow-lg shadow-fuchsia-950/25 transition hover:bg-fuchsia-500 focus:outline-none focus:ring-4 focus:ring-fuchsia-500/20"
+                >
+                  Open Thermostat Detail Page
+                </a>
+
                 <div className="grid grid-cols-2 gap-3">
                   <Field
                     label="Online"
