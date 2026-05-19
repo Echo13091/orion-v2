@@ -2668,7 +2668,17 @@ export default function Home() {
               },
             ]}
           >
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+            
+            <div className="mb-4">
+              <a
+                href="/decision-center"
+                className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/25 transition hover:bg-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-500/20"
+              >
+                Open Decision Center Detail Page
+              </a>
+            </div>
+
+<div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
               <div className="rounded-2xl border border-slate-800/80 bg-slate-950/35 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -2946,6 +2956,14 @@ export default function Home() {
                 },
               ]}
             >
+
+              <div className="space-y-4">
+                <a
+                  href="/weather"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white shadow-lg shadow-amber-950/25 transition hover:bg-amber-500 focus:outline-none focus:ring-4 focus:ring-amber-500/20"
+                >
+                  Open Weather Detail Page
+                </a>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Condition" value={system?.weather?.condition || "--"} />
                 <Field label="Precip" value={formatPrecip(system?.weather?.precip_in)} />
@@ -2966,6 +2984,8 @@ export default function Home() {
                   {system.weather.error}
                 </div>
               )}
+
+              </div>
             </CollapsibleCard>
 
             <CollapsibleCard
