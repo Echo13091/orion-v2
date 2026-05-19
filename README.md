@@ -8,6 +8,14 @@ Orion is not a simulated dashboard. It supervises real distributed hardware, nor
 
 ---
 
+## Purpose
+
+Orion V2 was built to explore how a local edge platform can supervise distributed automation systems while maintaining field-controller independence, fault visibility, environmental awareness, and safe operator-approved execution.
+
+Instead of replacing device-level logic, Orion acts as a supervisory orchestration layer above HVAC, irrigation, thermostat, weather, and environmental vision subsystems.
+
+---
+
 ## Highlights
 
 - NVIDIA Jetson edge deployment
