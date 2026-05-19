@@ -4,14 +4,13 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://192.168.7.230:5001";
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.7.230:5001";
 
 const POLL_MS = Number(process.env.NEXT_PUBLIC_SYSTEM_POLL_MS ?? "3000");
 
@@ -87,12 +86,12 @@ type EnvironmentState = {
     heat_stress?: boolean;
     extreme_heat?: boolean;
     low_humidity?: boolean;
+    lawn_analysis_available?: boolean;
     camera_rain_detected?: boolean;
     camera_rain_confidence?: string;
     camera_wetness_score?: number;
     camera_motion_score?: number;
   };
-  rain_detection?: RainDetection;
   irrigation?: {
     online?: boolean;
     running?: boolean;
@@ -129,12 +128,8 @@ type StreamState =
   | "reconnecting"
   | "error";
 
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
 function formatMode(value?: string | null) {
-  if (!value) return "--";
+  if (!value) return "—";
 
   return value
     .replace(/[_-]/g, " ")
@@ -144,24 +139,38 @@ function formatMode(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function displayValue(value: unknown, fallback = "—") {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
 function formatNumber(value: unknown, digits = 1) {
   const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(digits) : "--";
+  return Number.isFinite(n) ? n.toFixed(digits) : "—";
 }
 
 function formatPercent(value: unknown, digits = 1) {
   const n = Number(value);
-  return Number.isFinite(n) ? `${n.toFixed(digits)}%` : "--";
+  return Number.isFinite(n) ? `${n.toFixed(digits)}%` : "—";
 }
 
 function formatRatioPercent(value: unknown) {
   const n = Number(value);
-  return Number.isFinite(n) ? `${Math.round(n * 100)}%` : "--";
+  return Number.isFinite(n) ? `${Math.round(n * 100)}%` : "—";
 }
 
 function formatTemp(value: unknown) {
   const n = Number(value);
-  return Number.isFinite(n) ? `${n.toFixed(1)}°F` : "--";
+  return Number.isFinite(n) ? `${n.toFixed(1)}°F` : "—";
+}
+
+function formatJson(value: unknown) {
+  try {
+    return JSON.stringify(value ?? {}, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function statusFromOnline(value?: boolean): StatusState {
@@ -193,85 +202,95 @@ function confidenceState(value?: string | null): StatusState {
   return "neutral";
 }
 
-function Panel({
+function stateClasses(state: StatusState) {
+  if (state === "good") {
+    return "bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30";
+  }
+
+  if (state === "bad") {
+    return "bg-red-500/10 text-red-300 ring-1 ring-red-500/30";
+  }
+
+  if (state === "warn") {
+    return "bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/30";
+  }
+
+  if (state === "active") {
+    return "bg-blue-500/10 text-blue-300 ring-1 ring-blue-500/30";
+  }
+
+  return "bg-neutral-800 text-neutral-300 ring-1 ring-neutral-700";
+}
+
+function textStateClass(state: StatusState) {
+  if (state === "good") return "text-emerald-200";
+  if (state === "bad") return "text-red-200";
+  if (state === "warn") return "text-amber-200";
+  if (state === "active") return "text-blue-200";
+  return "text-white";
+}
+
+function Button({
   children,
-  className,
+  onClick,
+  disabled,
+  variant = "primary",
+  className = "",
 }: {
   children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: "primary" | "success" | "danger" | "secondary" | "ghost";
   className?: string;
 }) {
+  const variantClass =
+    variant === "success"
+      ? "bg-emerald-600 text-white hover:bg-emerald-500"
+      : variant === "danger"
+        ? "bg-red-600 text-white hover:bg-red-500"
+        : variant === "secondary"
+          ? "border border-neutral-700 bg-neutral-900 text-neutral-100 hover:bg-neutral-800"
+          : variant === "ghost"
+            ? "text-neutral-300 hover:bg-neutral-900"
+            : "bg-blue-600 text-white hover:bg-blue-500";
+
   return (
-    <section
-      className={cx(
-        "overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/75 shadow-xl shadow-black/10 ring-1 ring-white/[0.03] backdrop-blur",
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={[
+        "inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+        variantClass,
         className,
-      )}
+      ].join(" ")}
     >
       {children}
-    </section>
+    </button>
   );
 }
 
-function PanelHeader({
-  title,
-  subtitle,
-  right,
-}: {
-  title: string;
-  subtitle?: string;
-  right?: ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-slate-800/80 px-5 py-4">
-      <div className="min-w-0">
-        <h2 className="truncate text-sm font-semibold tracking-tight text-slate-100">
-          {title}
-        </h2>
-        {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
-      </div>
-      {right}
-    </div>
-  );
-}
-
-function StatusDot({ state = "neutral" }: { state?: StatusState }) {
-  return (
-    <span
-      className={cx(
-        "h-2 w-2 shrink-0 rounded-full",
-        state === "good" && "bg-emerald-300",
-        state === "bad" && "bg-red-300",
-        state === "warn" && "bg-amber-300",
-        state === "active" && "bg-blue-300",
-        state === "neutral" && "bg-slate-500",
-      )}
-    />
-  );
-}
-
-function StatusPill({
+function StatCard({
   label,
+  value,
+  sub,
   state = "neutral",
 }: {
   label: string;
+  value: string;
+  sub?: string;
   state?: StatusState;
 }) {
   return (
-    <span
-      className={cx(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
-        state === "good" &&
-          "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
-        state === "bad" && "border-red-400/20 bg-red-400/10 text-red-200",
-        state === "warn" && "border-amber-400/20 bg-amber-400/10 text-amber-200",
-        state === "active" && "border-blue-400/20 bg-blue-400/10 text-blue-200",
-        state === "neutral" &&
-          "border-slate-700/70 bg-slate-800/60 text-slate-300",
-      )}
-    >
-      <StatusDot state={state} />
-      {label}
-    </span>
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
+      <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+        {label}
+      </p>
+      <p className={`mt-2 text-3xl font-semibold ${textStateClass(state)}`}>
+        {value}
+      </p>
+      {sub ? <p className="mt-1 text-sm text-neutral-400">{sub}</p> : null}
+    </div>
   );
 }
 
@@ -285,65 +304,18 @@ function Field({
   state?: StatusState;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-slate-800/70 bg-slate-950/35 p-3">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
         {label}
-      </div>
-      <div
-        className={cx(
-          "mt-1 whitespace-normal break-words text-base font-semibold tracking-tight",
-          state === "good" && "text-emerald-200",
-          state === "bad" && "text-red-200",
-          state === "warn" && "text-amber-200",
-          state === "active" && "text-blue-200",
-          state === "neutral" && "text-white",
-        )}
-      >
+      </p>
+      <p className={`mt-2 break-words text-lg font-semibold ${textStateClass(state)}`}>
         {value}
-      </div>
+      </p>
     </div>
   );
 }
 
-function Button({
-  children,
-  onClick,
-  disabled,
-  variant = "primary",
-  className,
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  variant?: "primary" | "success" | "danger" | "secondary" | "ghost";
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cx(
-        "inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50",
-        variant === "primary" &&
-          "bg-blue-600 text-white shadow-lg shadow-blue-950/25 hover:bg-blue-500 focus:ring-blue-500/20",
-        variant === "success" &&
-          "bg-emerald-600 text-white shadow-lg shadow-emerald-950/20 hover:bg-emerald-500 focus:ring-emerald-500/20",
-        variant === "danger" &&
-          "bg-red-600 text-white shadow-lg shadow-red-950/20 hover:bg-red-500 focus:ring-red-500/20",
-        variant === "secondary" &&
-          "border border-slate-700/80 bg-slate-800/80 text-slate-100 hover:bg-slate-700 focus:ring-slate-500/20",
-        variant === "ghost" &&
-          "text-slate-300 hover:bg-slate-800/80 focus:ring-slate-500/20",
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function DetailCard({
+function Section({
   title,
   subtitle,
   status,
@@ -357,14 +329,28 @@ function DetailCard({
   children: ReactNode;
 }) {
   return (
-    <Panel>
-      <PanelHeader
-        title={title}
-        subtitle={subtitle}
-        right={status ? <StatusPill label={status} state={statusState} /> : null}
-      />
-      <div className="p-5">{children}</div>
-    </Panel>
+    <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          {subtitle ? (
+            <p className="mt-1 text-sm text-neutral-500">{subtitle}</p>
+          ) : null}
+        </div>
+
+        {status ? (
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${stateClasses(
+              statusState,
+            )}`}
+          >
+            {status}
+          </span>
+        ) : null}
+      </div>
+
+      {children}
+    </section>
   );
 }
 
@@ -388,6 +374,7 @@ export default function VisionPage() {
   const autoConnectAttemptedRef = useRef(false);
 
   const environment = system?.environment || null;
+  const weather = system?.weather || null;
 
   const visionOnline = Boolean(vision?.online);
   const visionStatus = !vision ? "Loading" : vision.online ? "Online" : "Offline";
@@ -407,7 +394,7 @@ export default function VisionPage() {
         : streamState === "reconnecting"
           ? "Reconnecting"
           : streamState === "error"
-            ? "Stream error"
+            ? "Stream Error"
             : "Idle";
 
   const streamPillState: StatusState =
@@ -575,7 +562,7 @@ export default function VisionPage() {
     setStreamState("idle");
   }, [stopRecording]);
 
-  const chooseRecorderOptions = (): MediaRecorderOptions | undefined => {
+  function chooseRecorderOptions(): MediaRecorderOptions | undefined {
     const candidates = [
       "video/webm;codecs=vp9",
       "video/webm;codecs=vp8",
@@ -595,16 +582,15 @@ export default function VisionPage() {
     }
 
     return undefined;
-  };
+  }
 
-  const saveRecording = () => {
+  function saveRecording() {
     const chunks = recordedChunksRef.current;
 
     if (!chunks.length) return;
 
     const recorder = recorderRef.current;
     const mimeType = recorder?.mimeType || "video/webm";
-
     const blob = new Blob(chunks, { type: mimeType });
     const url = URL.createObjectURL(blob);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -620,9 +606,9 @@ export default function VisionPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     }, 0);
-  };
+  }
 
-  const startRecording = () => {
+  function startRecording() {
     if (recording) return;
 
     const stream = videoRef.current?.srcObject;
@@ -663,18 +649,18 @@ export default function VisionPage() {
       setLastError(err instanceof Error ? err.message : String(err));
       setRecording(false);
     }
-  };
+  }
 
-  const toggleRecording = () => {
+  function toggleRecording() {
     if (recording) {
       stopRecording(true);
       return;
     }
 
     startRecording();
-  };
+  }
 
-  const startStream = async () => {
+  async function startStream() {
     if (pcRef.current || streamState === "connecting") return;
 
     setLastError(null);
@@ -764,7 +750,7 @@ export default function VisionPage() {
       stopStream();
       setStreamState("error");
     }
-  };
+  }
 
   useEffect(() => {
     refreshAll();
@@ -804,11 +790,11 @@ export default function VisionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visionOnline, streamState]);
 
-  const openSnapshot = () => {
+  function openSnapshot() {
     window.open(`${BACKEND_URL}/v1/vision/snapshot?t=${Date.now()}`, "_blank");
-  };
+  }
 
-  const autofocusOnce = async () => {
+  async function autofocusOnce() {
     await fetch(`${BACKEND_URL}/v1/vision/focus`, {
       method: "POST",
       headers: {
@@ -818,9 +804,9 @@ export default function VisionPage() {
     });
 
     await loadVision();
-  };
+  }
 
-  const restartCamera = async () => {
+  async function restartCamera() {
     const confirmed = window.confirm("Restart the vision node camera?");
     if (!confirmed) return;
 
@@ -829,7 +815,7 @@ export default function VisionPage() {
     });
 
     await loadVision();
-  };
+  }
 
   const streamButtonLabel =
     streamState === "connected"
@@ -840,148 +826,158 @@ export default function VisionPage() {
           ? "Reconnect"
           : "Connect";
 
+  const cameraRainDetected =
+    environment?.inputs?.camera_rain_detected || rainDetection?.rain_detected;
+
+  const rainEvidenceLabel = cameraRainDetected
+    ? "Detected"
+    : "Not visually confirmed";
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <style>{`
-        html { color-scheme: dark; }
-        * { scrollbar-width: thin; scrollbar-color: rgba(100, 116, 139, 0.42) transparent; }
-        *::-webkit-scrollbar { width: 8px; height: 8px; }
-        *::-webkit-scrollbar-track { background: transparent; }
-        *::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.35); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
-        *::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.55); background-clip: padding-box; }
-      `}</style>
-
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.14),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.08),_transparent_30%),linear-gradient(180deg,_rgba(15,23,42,0.22),_transparent_42%)]" />
-
-      <header className="relative z-20 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-5 py-3.5">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-xl shadow-lg shadow-blue-950/30">
-              📷
-            </div>
-
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold tracking-tight text-white">
-                Orion Vision Node
-              </h1>
-              <p className="truncate text-xs text-slate-400">
-                Environmental vision, lawn telemetry, rain evidence, and irrigation guidance
-              </p>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <StatusPill label={visionStatus} state={visionState} />
+    <main className="min-h-screen bg-black px-6 py-8 text-white">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
             <Link
               href="/"
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-800/80 px-4 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
+              className="text-sm font-medium text-neutral-400 hover:text-white"
             >
-              Back to Dashboard
+              ← Back to Orion Dashboard
             </Link>
+
+            <p className="mt-6 text-xs uppercase tracking-[0.25em] text-neutral-500">
+              Orion Vision Node
+            </p>
+
+            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-white">
+              Environmental Vision
+            </h1>
+
+            <p className="mt-2 max-w-3xl text-neutral-400">
+              Dedicated vision page for live camera streaming, lawn condition,
+              visual rain evidence, environmental decisions, and irrigation guidance.
+            </p>
+          </div>
+
+          <div className={`rounded-full px-4 py-2 text-sm font-semibold ${stateClasses(visionState)}`}>
+            {visionStatus}
           </div>
         </div>
-      </header>
 
-      <main className="relative mx-auto grid max-w-[1500px] grid-cols-1 gap-5 px-5 py-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(380px,0.85fr)]">
-        <section className="space-y-4">
-          <Panel>
-            <PanelHeader
-              title="Environmental Camera Feed"
-              subtitle="Pi Zero 2 W · IMX708 · WebRTC"
-              right={<StatusPill label={streamLabel} state={streamPillState} />}
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard
+            label="Decision"
+            value={formatMode(environment?.recommendation)}
+            state={recommendationState(environment?.recommendation)}
+            sub="Environmental recommendation"
+          />
+          <StatCard
+            label="Confidence"
+            value={formatMode(environment?.confidence)}
+            state={confidenceState(environment?.confidence)}
+            sub="Decision certainty"
+          />
+          <StatCard
+            label="Rain Probability"
+            value={formatRatioPercent(environment?.inputs?.rain_probability)}
+            state={Number(environment?.inputs?.rain_probability ?? 0) >= 0.7 ? "warn" : "neutral"}
+            sub="Weather input"
+          />
+          <StatCard
+            label="Vision Evidence"
+            value={rainEvidenceLabel}
+            state={cameraRainDetected ? "warn" : "neutral"}
+            sub="Camera rain/wetness"
+          />
+        </div>
+
+        <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
+          <div className="flex items-start justify-between gap-4 border-b border-neutral-800 p-5">
+            <div>
+              <h2 className="text-xl font-semibold">Environmental Camera Feed</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Pi Zero 2 W · IMX708 · WebRTC
+              </p>
+            </div>
+
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${stateClasses(
+                streamPillState,
+              )}`}
+            >
+              {streamLabel}
+            </span>
+          </div>
+
+          <div className="bg-black">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="aspect-video w-full bg-black object-contain"
             />
+          </div>
 
-            <div className="bg-black">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="aspect-video w-full bg-black object-contain"
-              />
+          <div className="grid grid-cols-2 gap-3 border-t border-neutral-800 p-4 md:grid-cols-4">
+            <Button
+              onClick={startStream}
+              disabled={
+                !visionOnline ||
+                streamState === "connecting" ||
+                streamState === "connected"
+              }
+            >
+              {streamButtonLabel}
+            </Button>
+
+            <Button
+              onClick={stopStream}
+              disabled={streamState === "idle"}
+              variant="secondary"
+            >
+              Disconnect
+            </Button>
+
+            <Button
+              onClick={toggleRecording}
+              disabled={streamState !== "connected"}
+              variant={recording ? "danger" : "success"}
+            >
+              {recording ? "Stop Recording" : "Record Clip"}
+            </Button>
+
+            <Button
+              onClick={openSnapshot}
+              disabled={!visionOnline}
+              variant="secondary"
+            >
+              Snapshot
+            </Button>
+          </div>
+
+          {lastError ? (
+            <div className="border-t border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+              {lastError}
             </div>
+          ) : null}
+        </section>
 
-            <div className="grid grid-cols-2 gap-2 border-t border-slate-800/80 p-4 sm:grid-cols-4">
-              <Button
-                onClick={startStream}
-                disabled={
-                  !visionOnline ||
-                  streamState === "connecting" ||
-                  streamState === "connected"
-                }
-                className="h-9 w-full"
-              >
-                {streamButtonLabel}
-              </Button>
-
-              <Button
-                onClick={stopStream}
-                disabled={streamState === "idle"}
-                variant="secondary"
-                className="h-9 w-full"
-              >
-                Disconnect
-              </Button>
-
-              <Button
-                onClick={toggleRecording}
-                disabled={streamState !== "connected"}
-                variant={recording ? "danger" : "success"}
-                className="h-9 w-full"
-              >
-                {recording ? "Stop" : "Record Clip"}
-              </Button>
-
-              <Button
-                onClick={openSnapshot}
-                disabled={!visionOnline}
-                variant="secondary"
-                className="h-9 w-full"
-              >
-                Snapshot
-              </Button>
-            </div>
-
-            {lastError && (
-              <div className="border-t border-red-400/15 bg-red-500/10 p-4 text-sm text-red-200">
-                {lastError}
-              </div>
-            )}
-          </Panel>
-
-          <DetailCard
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <Section
             title="Environmental Decision"
             subtitle="Weather, camera, lawn condition, and irrigation context"
-            status={formatMode(environment?.confidence || "Unknown")}
+            status={formatMode(environment?.confidence || "unknown")}
             statusState={confidenceState(environment?.confidence)}
           >
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Decision"
                 value={formatMode(environment?.recommendation)}
                 state={recommendationState(environment?.recommendation)}
               />
               <Field
-                label="Confidence"
-                value={formatMode(environment?.confidence)}
-                state={confidenceState(environment?.confidence)}
-              />
-              <Field
-                label="Rain Probability"
-                value={formatRatioPercent(environment?.inputs?.rain_probability)}
-                state={
-                  Number(environment?.inputs?.rain_probability ?? 0) >= 0.7
-                    ? "warn"
-                    : "neutral"
-                }
-              />
-              <Field
-                label="Visual Rain Evidence"
-                value={environment?.inputs?.camera_rain_detected ? "Detected" : "Not Visually Confirmedly Confirmed"}
-                state={environment?.inputs?.camera_rain_detected ? "warn" : "neutral"}
-              />
-              <Field
-                label="Lawn Watering Need"
+                label="Lawn Need"
                 value={formatMode(environment?.inputs?.lawn_need_level)}
                 state={
                   environment?.inputs?.lawn_need_level === "high"
@@ -992,26 +988,27 @@ export default function VisionPage() {
                 }
               />
               <Field
-                label="Next Scheduled Run"
-                value={String(environment?.irrigation?.next_irrigation || "--")}
+                label="Next Run"
+                value={displayValue(environment?.irrigation?.next_irrigation)}
+              />
+              <Field
+                label="Heat Stress"
+                value={displayValue(environment?.inputs?.heat_stress)}
+                state={environment?.inputs?.heat_stress ? "warn" : "neutral"}
               />
             </div>
 
-            <p className="mt-4 rounded-xl border border-slate-800/70 bg-slate-950/35 p-3 text-sm leading-6 text-slate-300">
+            <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm leading-6 text-neutral-300">
               {environment?.reason || "No environmental decision available."}
-            </p>
+            </div>
 
-            {environment?.safety && (
-              <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-950/35 p-3 text-xs leading-5 text-slate-300">
-                {environment.safety.reason ||
-                  "Environmental decisions are advisory and require operator approval before hardware action."}
-              </div>
-            )}
-          </DetailCard>
-        </section>
+            <div className="mt-4 rounded-xl border border-neutral-800 bg-black p-4 text-xs leading-5 text-neutral-300">
+              {environment?.safety?.reason ||
+                "Environmental decisions are advisory and require operator approval before hardware action."}
+            </div>
+          </Section>
 
-        <aside className="space-y-4">
-          <DetailCard
+          <Section
             title="Vision Node Health"
             subtitle={vision?.node_name || "Camera service, stream health, focus state, and telemetry"}
             status={visionStatus}
@@ -1034,35 +1031,26 @@ export default function VisionPage() {
                       : "neutral"
                 }
               />
-              <Field label="Resolution" value={vision?.resolution || "--"} />
+              <Field label="Resolution" value={vision?.resolution || "—"} />
               <Field
                 label="Clients"
                 value={vision?.streaming_clients ?? 0}
-                state={
-                  Number(vision?.streaming_clients ?? 0) > 0
-                    ? "active"
-                    : "neutral"
-                }
+                state={Number(vision?.streaming_clients ?? 0) > 0 ? "active" : "neutral"}
               />
               <Field
                 label="Focus"
                 value={formatMode(vision?.focus_mode)}
                 state={vision?.focus_mode ? "good" : "neutral"}
               />
-              <Field
-                label="Lens"
-                value={formatNumber(vision?.lens_position, 2)}
-              />
+              <Field label="Lens" value={formatNumber(vision?.lens_position, 2)} />
               <Field
                 label="Last Frame"
                 value={
                   Number.isFinite(Number(vision?.last_frame_age))
                     ? `${Number(vision?.last_frame_age).toFixed(2)}s ago`
-                    : "--"
+                    : "—"
                 }
-                state={
-                  Number(vision?.last_frame_age ?? 999) <= 2 ? "good" : "warn"
-                }
+                state={Number(vision?.last_frame_age ?? 999) <= 2 ? "good" : "warn"}
               />
               <Field
                 label="Fault"
@@ -1071,40 +1059,32 @@ export default function VisionPage() {
               />
             </div>
 
-            {vision?.error && (
-              <div className="mt-4 rounded-xl border border-red-400/15 bg-red-500/10 p-3 text-xs leading-5 text-red-200">
+            {vision?.error ? (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
                 {vision.error}
                 {vision.detail ? ` · ${vision.detail}` : ""}
               </div>
-            )}
+            ) : null}
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button onClick={refreshAll} variant="secondary" className="h-9">
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button onClick={refreshAll} variant="secondary">
                 Refresh
               </Button>
-              <Button
-                onClick={autofocusOnce}
-                disabled={!visionOnline}
-                variant="secondary"
-                className="h-9"
-              >
+              <Button onClick={autofocusOnce} disabled={!visionOnline} variant="secondary">
                 Autofocus
               </Button>
-              <Button
-                onClick={restartCamera}
-                disabled={!visionOnline}
-                variant="ghost"
-                className="h-9"
-              >
-                Restart camera
+              <Button onClick={restartCamera} disabled={!visionOnline} variant="ghost">
+                Restart Camera
               </Button>
             </div>
-          </DetailCard>
+          </Section>
+        </div>
 
-          <DetailCard
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+          <Section
             title="Lawn Condition"
             subtitle="Camera-based grass color and dryness analysis"
-            status={formatMode(grassCondition?.condition || "Waiting")}
+            status={formatMode(grassCondition?.condition || "waiting")}
             statusState={conditionState(grassCondition?.condition)}
           >
             <div className="grid grid-cols-2 gap-3">
@@ -1118,7 +1098,7 @@ export default function VisionPage() {
                 value={
                   Number.isFinite(Number(grassCondition?.score))
                     ? `${Number(grassCondition?.score).toFixed(0)} / 100`
-                    : "--"
+                    : "—"
                 }
                 state={
                   Number(grassCondition?.score ?? 0) >= 65
@@ -1130,167 +1110,126 @@ export default function VisionPage() {
                         : "neutral"
                 }
               />
-              <Field
-                label="Dryness"
-                value={formatNumber(grassCondition?.dryness_index, 3)}
-              />
-              <Field
-                label="Green"
-                value={formatPercent(grassCondition?.green_percent, 1)}
-                state="good"
-              />
+              <Field label="Dryness" value={formatNumber(grassCondition?.dryness_index, 3)} />
+              <Field label="Green" value={formatPercent(grassCondition?.green_percent, 1)} state="good" />
               <Field
                 label="Dry Tones"
                 value={formatPercent(grassCondition?.dry_percent, 1)}
-                state={
-                  Number(grassCondition?.dry_percent ?? 0) >= 15
-                    ? "warn"
-                    : "neutral"
-                }
+                state={Number(grassCondition?.dry_percent ?? 0) >= 15 ? "warn" : "neutral"}
               />
-              <Field
-                label="Valid Area"
-                value={formatPercent(grassCondition?.valid_percent, 1)}
-              />
+              <Field label="Valid Area" value={formatPercent(grassCondition?.valid_percent, 1)} />
             </div>
 
-            {grassCondition?.reason && (
-              <p className="mt-3 text-xs leading-5 text-slate-400">
+            {grassCondition?.reason ? (
+              <p className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm leading-6 text-neutral-300">
                 {grassCondition.reason}
               </p>
-            )}
+            ) : null}
 
-            {grassCondition?.error && (
-              <div className="mt-3 rounded-xl border border-red-400/15 bg-red-500/10 p-3 text-xs leading-5 text-red-200">
+            {grassCondition?.error ? (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
                 {grassCondition.error}
                 {grassCondition.detail ? ` · ${grassCondition.detail}` : ""}
               </div>
-            )}
+            ) : null}
 
             <Button
               onClick={loadGrassCondition}
               disabled={!visionOnline}
               variant="secondary"
-              className="mt-4 h-9"
+              className="mt-4"
             >
               Analyze Lawn
             </Button>
-          </DetailCard>
+          </Section>
 
-          <DetailCard
+          <Section
             title="Visual Rain Evidence"
             subtitle="Camera-assisted rain and wet-surface detection"
-            status={
-              rainDetection?.rain_detected
-                ? "Detected"
-                : rainDetection
-                  ? "Not Visually Confirmedly Confirmed"
-                  : "Waiting"
-            }
-            statusState={
-              rainDetection?.rain_detected
-                ? "warn"
-                : rainDetection
-                  ? "neutral"
-                  : "neutral"
-            }
+            status={rainEvidenceLabel}
+            statusState={cameraRainDetected ? "warn" : "neutral"}
           >
             <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Rain"
-                value={rainDetection?.rain_detected ? "Detected" : "Not Visually Confirmedly Confirmed"}
-                state={rainDetection?.rain_detected ? "warn" : "neutral"}
+                value={rainEvidenceLabel}
+                state={cameraRainDetected ? "warn" : "neutral"}
               />
               <Field
                 label="Confidence"
-                value={formatMode(rainDetection?.confidence)}
-                state={confidenceState(rainDetection?.confidence)}
+                value={formatMode(rainDetection?.confidence || environment?.inputs?.camera_rain_confidence)}
+                state={confidenceState(rainDetection?.confidence || environment?.inputs?.camera_rain_confidence)}
               />
               <Field
                 label="Wetness"
-                value={formatNumber(rainDetection?.wetness_score, 3)}
-                state={
-                  Number(rainDetection?.wetness_score ?? 0) >= 0.32
-                    ? "warn"
-                    : "neutral"
-                }
+                value={formatNumber(rainDetection?.wetness_score ?? environment?.inputs?.camera_wetness_score, 3)}
               />
               <Field
                 label="Motion"
-                value={formatNumber(rainDetection?.motion_score, 3)}
+                value={formatNumber(rainDetection?.motion_score ?? environment?.inputs?.camera_motion_score, 3)}
               />
-              <Field
-                label="Dark Area"
-                value={formatPercent(rainDetection?.dark_percent, 1)}
-              />
-              <Field
-                label="Reflection"
-                value={formatPercent(rainDetection?.reflection_percent, 1)}
-              />
+              <Field label="Dark Area" value={formatPercent(rainDetection?.dark_percent, 1)} />
+              <Field label="Reflection" value={formatPercent(rainDetection?.reflection_percent, 1)} />
             </div>
 
-            {rainDetection?.reason && (
-              <p className="mt-3 text-xs leading-5 text-slate-400">
+            {rainDetection?.reason ? (
+              <p className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm leading-6 text-neutral-300">
                 {rainDetection.reason}
               </p>
-            )}
+            ) : null}
 
-            {rainDetection?.error && (
-              <div className="mt-3 rounded-xl border border-red-400/15 bg-red-500/10 p-3 text-xs leading-5 text-red-200">
+            {rainDetection?.error ? (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
                 {rainDetection.error}
                 {rainDetection.detail ? ` · ${rainDetection.detail}` : ""}
               </div>
-            )}
+            ) : null}
 
             <Button
               onClick={loadRainDetection}
               disabled={!visionOnline}
               variant="secondary"
-              className="mt-4 h-9"
+              className="mt-4"
             >
               Analyze Rain
             </Button>
-          </DetailCard>
+          </Section>
+        </div>
 
-          <DetailCard
-            title="Weather Conditions"
-            subtitle={system?.weather?.location || "Local weather and irrigation context"}
-            status={
-              Number(system?.weather?.rain_chance ?? 0) >= 70
-                ? "Rain likely"
-                : system?.weather?.condition || "Weather"
-            }
-            statusState={
-              Number(system?.weather?.rain_chance ?? 0) >= 70 ? "warn" : "good"
-            }
-          >
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Temp" value={formatTemp(system?.weather?.temp)} />
-              <Field
-                label="Feels Like"
-                value={formatTemp(system?.weather?.feels_like)}
-              />
-              <Field
-                label="Rain"
-                value={
-                  Number.isFinite(Number(system?.weather?.rain_chance))
-                    ? `${Number(system?.weather?.rain_chance).toFixed(0)}%`
-                    : "--"
-                }
-                state={
-                  Number(system?.weather?.rain_chance ?? 0) >= 70
-                    ? "warn"
-                    : "neutral"
-                }
-              />
-              <Field
-                label="Humidity"
-                value={formatPercent(system?.weather?.humidity, 1)}
-              />
-            </div>
-          </DetailCard>
-        </aside>
-      </main>
-    </div>
+        <Section
+          title="Weather Context"
+          subtitle={weather?.location || "Outdoor conditions used by the vision decision model"}
+          status={Number(weather?.rain_chance ?? 0) >= 70 ? "Rain likely" : "Monitoring"}
+          statusState={Number(weather?.rain_chance ?? 0) >= 70 ? "warn" : "good"}
+        >
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="Temperature" value={formatTemp(weather?.temp)} />
+            <Field label="Feels Like" value={formatTemp(weather?.feels_like)} />
+            <Field
+              label="Rain"
+              value={Number.isFinite(Number(weather?.rain_chance)) ? `${Number(weather?.rain_chance).toFixed(0)}%` : "—"}
+              state={Number(weather?.rain_chance ?? 0) >= 70 ? "warn" : "neutral"}
+            />
+            <Field label="Humidity" value={formatPercent(weather?.humidity, 1)} />
+          </div>
+        </Section>
+
+        <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold text-neutral-300">
+              Raw vision JSON
+            </summary>
+            <pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-black p-4 text-xs leading-5 text-neutral-300">
+              {formatJson({
+                vision,
+                grassCondition,
+                rainDetection,
+                environment,
+              })}
+            </pre>
+          </details>
+        </section>
+      </div>
+    </main>
   );
 }
