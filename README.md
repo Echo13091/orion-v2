@@ -834,3 +834,13 @@ David Echols
 GitHub: Echo13091
 
 Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Docker Compose deployment, Raspberry Pi field controllers, Raspberry Pi Zero 2 W environmental vision, ESP32 hardware nodes, and real home automation equipment.
+
+---
+
+## Licensing
+
+All rights reserved.
+
+This repository is provided for portfolio and educational viewing purposes only.
+
+No permission is granted to copy, redistribute, modify, deploy, or commercially use Orion V2 without explicit written permission from the author.
