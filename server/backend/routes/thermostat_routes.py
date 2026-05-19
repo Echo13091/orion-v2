@@ -5,6 +5,7 @@ from thermostat_service import (
     list_thermostats,
     recent_events,
     request_setpoint_change,
+    sync_from_provider,
     update_thermostat,
 )
 
@@ -41,6 +42,18 @@ def thermostats_show(thermostat_id):
 def thermostats_ingest():
     payload = request.get_json(silent=True) or {}
     thermostat = update_thermostat(payload)
+
+    return jsonify(
+        {
+            "ok": True,
+            "thermostat": thermostat,
+        }
+    )
+
+
+@thermostat_bp.post("/v1/thermostats/sync-provider")
+def thermostats_sync_provider():
+    thermostat = sync_from_provider()
 
     return jsonify(
         {

@@ -4,6 +4,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from providers.thermostat_manager import get_thermostat_state
+
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -304,3 +306,28 @@ def request_setpoint_change(
 
 def recent_events(limit: int = 25) -> List[Dict[str, Any]]:
     return list(reversed(_events()))[:limit]
+
+
+def sync_from_provider() -> Dict[str, Any]:
+    provider_state = get_thermostat_state()
+
+    thermostat = update_thermostat({
+        "id": provider_state.get("id", "t6pro_living_room"),
+        "name": provider_state.get("name", "Orion Thermostat"),
+        "vendor": provider_state.get("vendor", "Unknown"),
+        "model": provider_state.get("model", "Unknown"),
+        "source": provider_state.get("provider", "unknown"),
+        "online": provider_state.get("online", False),
+        "temperature": provider_state.get("temperature"),
+        "humidity": provider_state.get("humidity"),
+        "target_setpoint": provider_state.get("setpoint"),
+        "mode": provider_state.get("mode"),
+        "fan_mode": provider_state.get("fan_mode"),
+        "equipment_state": provider_state.get("equipment_state"),
+        "cooling": provider_state.get("cooling"),
+        "heating": provider_state.get("heating"),
+        "fan_active": provider_state.get("fan"),
+        "raw": provider_state,
+    })
+
+    return thermostat
