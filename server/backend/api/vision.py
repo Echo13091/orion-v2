@@ -1,3 +1,5 @@
+import colorsys
+import io
 import json
 import os
 import urllib.error
@@ -102,6 +104,265 @@ def _normalize_status(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+def _normalized_roi_box(
+    settings: dict[str, Any],
+    roi_key: str,
+    width: int,
+    height: int,
+    default: tuple[float, float, float, float],
+) -> tuple[int, int, int, int]:
+    roi = settings.get(roi_key) if isinstance(settings.get(roi_key), dict) else {}
+
+    x = _clamp(float(roi.get("x", default[0])), 0.0, 1.0)
+    y = _clamp(float(roi.get("y", default[1])), 0.0, 1.0)
+    w = _clamp(float(roi.get("w", default[2])), 0.01, 1.0)
+    h = _clamp(float(roi.get("h", default[3])), 0.01, 1.0)
+
+    left = int(width * x)
+    top = int(height * y)
+    right = int(width * _clamp(x + w, 0.0, 1.0))
+    bottom = int(height * _clamp(y + h, 0.0, 1.0))
+
+    if right <= left:
+        right = min(width, left + 1)
+    if bottom <= top:
+        bottom = min(height, top + 1)
+
+    return left, top, right, bottom
+
+
+def _load_snapshot_image():
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pillow is required for Jetson-side vision analysis. "
+            "Install it with: pip install Pillow"
+        ) from exc
+
+    status_payload = _read_json(f"{VISION_NODE_URL}/api/status")
+    settings = status_payload.get("settings") if isinstance(status_payload.get("settings"), dict) else {}
+
+    data, _content_type = _read_bytes(
+        f"{VISION_NODE_URL}/api/snapshot",
+        timeout=max(VISION_TIMEOUT, 10.0),
+    )
+
+    image = Image.open(io.BytesIO(data)).convert("RGB")
+    return image, settings, status_payload
+
+
+def _downsample_crop(image, box: tuple[int, int, int, int], max_size=(320, 180)):
+    crop = image.crop(box)
+    crop.thumbnail(max_size)
+    return crop
+
+
+def _analyze_grass_from_snapshot() -> dict[str, Any]:
+    image, settings, status_payload = _load_snapshot_image()
+    width, height = image.size
+
+    box = _normalized_roi_box(
+        settings,
+        "grass_roi",
+        width,
+        height,
+        default=(0.0, 0.52, 0.62, 0.45),
+    )
+
+    crop = _downsample_crop(image, box)
+    pixels = list(crop.getdata())
+    total = max(len(pixels), 1)
+
+    green_pixels = 0
+    dry_pixels = 0
+    dark_pixels = 0
+    green_dominance_sum = 0.0
+    saturation_sum = 0.0
+    brightness_sum = 0.0
+
+    for r, g, b in pixels:
+        rf, gf, bf = r / 255.0, g / 255.0, b / 255.0
+        hue, saturation, value = colorsys.rgb_to_hsv(rf, gf, bf)
+
+        saturation_sum += saturation
+        brightness_sum += value
+        green_dominance_sum += max(0.0, (g - max(r, b)) / 255.0)
+
+        is_green = (
+            0.18 <= hue <= 0.48
+            and saturation >= 0.18
+            and value >= 0.15
+            and g > r * 1.05
+            and g > b * 1.05
+        )
+        is_dry = (
+            0.04 <= hue <= 0.17
+            and saturation >= 0.16
+            and value >= 0.18
+            and r >= g * 0.95
+            and g >= b * 0.90
+        )
+        is_dark = value < 0.12
+
+        if is_green:
+            green_pixels += 1
+        if is_dry:
+            dry_pixels += 1
+        if is_dark:
+            dark_pixels += 1
+
+    green_ratio = green_pixels / total
+    dry_ratio = dry_pixels / total
+    dark_ratio = dark_pixels / total
+    avg_saturation = saturation_sum / total
+    avg_brightness = brightness_sum / total
+    avg_green_dominance = green_dominance_sum / total
+
+    score = round(
+        _clamp(
+            (green_ratio * 100.0)
+            + (avg_green_dominance * 80.0)
+            - (dry_ratio * 35.0)
+            - (dark_ratio * 20.0),
+            0.0,
+            100.0,
+        ),
+        1,
+    )
+
+    if score >= 60:
+        condition = "good"
+        recommendation = "Grass color looks healthy in the configured ROI."
+    elif score >= 35:
+        condition = "fair"
+        recommendation = "Grass color is mixed. Keep monitoring before changing irrigation."
+    else:
+        condition = "poor"
+        recommendation = "Grass appears dry, dark, or low-green in the configured ROI."
+
+    return {
+        "ok": True,
+        "source": "orion_jetson_snapshot_analysis",
+        "node_url": VISION_NODE_URL,
+        "condition": condition,
+        "grass_condition": condition,
+        "score": score,
+        "confidence": "medium",
+        "recommendation": recommendation,
+        "metrics": {
+            "green_ratio": round(green_ratio, 4),
+            "dry_ratio": round(dry_ratio, 4),
+            "dark_ratio": round(dark_ratio, 4),
+            "avg_saturation": round(avg_saturation, 4),
+            "avg_brightness": round(avg_brightness, 4),
+            "avg_green_dominance": round(avg_green_dominance, 4),
+        },
+        "roi": {
+            "left": box[0],
+            "top": box[1],
+            "right": box[2],
+            "bottom": box[3],
+            "image_width": width,
+            "image_height": height,
+        },
+        "vision_status": _normalize_status(status_payload),
+    }
+
+
+def _analyze_rain_from_snapshot() -> dict[str, Any]:
+    image, settings, status_payload = _load_snapshot_image()
+    width, height = image.size
+
+    box = _normalized_roi_box(
+        settings,
+        "rain_roi",
+        width,
+        height,
+        default=(0.05, 0.28, 0.78, 0.52),
+    )
+
+    crop = _downsample_crop(image, box)
+    pixels = list(crop.getdata())
+    total = max(len(pixels), 1)
+
+    low_saturation_pixels = 0
+    bright_reflection_pixels = 0
+    dark_wet_pixels = 0
+    saturation_sum = 0.0
+    brightness_sum = 0.0
+
+    for r, g, b in pixels:
+        rf, gf, bf = r / 255.0, g / 255.0, b / 255.0
+        _hue, saturation, value = colorsys.rgb_to_hsv(rf, gf, bf)
+
+        saturation_sum += saturation
+        brightness_sum += value
+
+        if saturation <= 0.18 and value >= 0.28:
+            low_saturation_pixels += 1
+        if saturation <= 0.22 and value >= 0.72:
+            bright_reflection_pixels += 1
+        if saturation <= 0.25 and 0.12 <= value <= 0.38:
+            dark_wet_pixels += 1
+
+    low_sat_ratio = low_saturation_pixels / total
+    reflection_ratio = bright_reflection_pixels / total
+    dark_wet_ratio = dark_wet_pixels / total
+    avg_saturation = saturation_sum / total
+    avg_brightness = brightness_sum / total
+
+    evidence_score = round(
+        _clamp(
+            (low_sat_ratio * 45.0)
+            + (reflection_ratio * 70.0)
+            + (dark_wet_ratio * 35.0)
+            - (avg_saturation * 15.0),
+            0.0,
+            100.0,
+        ),
+        1,
+    )
+
+    rain_detected = evidence_score >= 35.0
+
+    if rain_detected:
+        summary = "Possible rain/wet-surface evidence detected in the configured ROI."
+    else:
+        summary = "No strong rain/wet-surface evidence detected in the configured ROI."
+
+    return {
+        "ok": True,
+        "source": "orion_jetson_snapshot_analysis",
+        "node_url": VISION_NODE_URL,
+        "rain_detected": rain_detected,
+        "detected": rain_detected,
+        "score": evidence_score,
+        "confidence": "low" if 25.0 <= evidence_score <= 45.0 else "medium",
+        "summary": summary,
+        "metrics": {
+            "low_saturation_ratio": round(low_sat_ratio, 4),
+            "reflection_ratio": round(reflection_ratio, 4),
+            "dark_wet_ratio": round(dark_wet_ratio, 4),
+            "avg_saturation": round(avg_saturation, 4),
+            "avg_brightness": round(avg_brightness, 4),
+        },
+        "roi": {
+            "left": box[0],
+            "top": box[1],
+            "right": box[2],
+            "bottom": box[3],
+            "image_width": width,
+            "image_height": height,
+        },
+        "vision_status": _normalize_status(status_payload),
+    }
+
+
 def get_vision_status() -> dict[str, Any]:
     payload = _read_json(f"{VISION_NODE_URL}/api/status")
     return _normalize_status(payload)
@@ -130,7 +391,7 @@ def register_vision(app):
     @app.route("/v1/vision/grass-condition", methods=["GET"])
     def vision_grass_condition():
         try:
-            payload = _read_json(f"{VISION_NODE_URL}/api/grass-condition")
+            payload = _analyze_grass_from_snapshot()
             return jsonify(payload)
         except urllib.error.URLError as e:
             return _json_error(
@@ -148,7 +409,7 @@ def register_vision(app):
     @app.route("/v1/vision/rain-detection", methods=["GET"])
     def vision_rain_detection():
         try:
-            payload = _read_json(f"{VISION_NODE_URL}/api/rain-detection")
+            payload = _analyze_rain_from_snapshot()
             return jsonify(payload)
         except urllib.error.URLError as e:
             return _json_error(
