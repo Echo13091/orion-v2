@@ -48,16 +48,29 @@ def first_present(*values: Any) -> Any:
 
 
 def is_lawn_analysis_available(grass_condition: Dict[str, Any]) -> bool:
-    condition = str(grass_condition.get("condition") or "").strip().lower()
-    valid_percent = safe_float(grass_condition.get("valid_percent"), 0.0)
-
-    if condition == "unknown":
+    if not isinstance(grass_condition, dict) or not grass_condition.get("ok", True):
         return False
+
+    condition = str(grass_condition.get("condition") or grass_condition.get("grass_condition") or "").strip().lower()
+    source = str(grass_condition.get("source") or "").strip().lower()
+    score = safe_float(grass_condition.get("score"), None)
+    valid_percent = safe_float(grass_condition.get("valid_percent"), None)
+
+    if condition in {"unknown", "unavailable", "waiting", "error"}:
+        return False
+
+    # New Orion backend analysis may not have the older Pi-side valid_percent field.
+    # If it has a valid score and known condition, treat it as usable.
+    if source == "orion_jetson_snapshot_analysis" and score is not None:
+        return True
 
     if valid_percent is not None and valid_percent < 5.0:
         return False
 
-    return True
+    if score is not None:
+        return True
+
+    return bool(condition)
 
 
 def extract_next_irrigation(sprinkler: Dict[str, Any]) -> Any:
@@ -205,7 +218,19 @@ def evaluate_environment(
     lawn_analysis_available = is_lawn_analysis_available(grass_condition)
 
     grass_score = normalize_grass_score(grass_condition.get("score"))
-    dryness_index = normalize_dryness(grass_condition.get("dryness_index"))
+
+    if grass_condition.get("dryness_index") is not None:
+        dryness_index = normalize_dryness(grass_condition.get("dryness_index"))
+    else:
+        condition = str(grass_condition.get("condition") or grass_condition.get("grass_condition") or "").strip().lower()
+        if condition == "good":
+            dryness_index = 0.05
+        elif condition == "fair":
+            dryness_index = 0.35
+        elif condition == "poor":
+            dryness_index = 0.75
+        else:
+            dryness_index = normalize_dryness(None)
 
     if not lawn_analysis_available:
         grass_score = 0.5

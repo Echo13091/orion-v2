@@ -245,6 +245,11 @@ def _analyze_grass_from_snapshot() -> dict[str, Any]:
         condition = "poor"
         recommendation = "Grass appears dry, dark, or low-green in the configured ROI."
 
+    green_percent = round(green_ratio * 100.0, 1)
+    dry_percent = round(dry_ratio * 100.0, 1)
+    valid_percent = round((1.0 - dark_ratio) * 100.0, 1)
+    dryness_index = round(_clamp((dry_ratio * 0.75) + ((100.0 - score) / 100.0 * 0.25), 0.0, 1.0), 3)
+
     return {
         "ok": True,
         "source": "orion_jetson_snapshot_analysis",
@@ -254,6 +259,11 @@ def _analyze_grass_from_snapshot() -> dict[str, Any]:
         "score": score,
         "confidence": "medium",
         "recommendation": recommendation,
+        "reason": recommendation,
+        "dryness_index": dryness_index,
+        "green_percent": green_percent,
+        "dry_percent": dry_percent,
+        "valid_percent": valid_percent,
         "metrics": {
             "green_ratio": round(green_ratio, 4),
             "dry_ratio": round(dry_ratio, 4),
@@ -335,6 +345,11 @@ def _analyze_rain_from_snapshot() -> dict[str, Any]:
     else:
         summary = "No strong rain/wet-surface evidence detected in the configured ROI."
 
+    wetness_score = round(evidence_score / 100.0, 3)
+    motion_score = 0.0
+    dark_area_percent = round(dark_wet_ratio * 100.0, 1)
+    reflection_percent = round(reflection_ratio * 100.0, 1)
+
     return {
         "ok": True,
         "source": "orion_jetson_snapshot_analysis",
@@ -344,6 +359,10 @@ def _analyze_rain_from_snapshot() -> dict[str, Any]:
         "score": evidence_score,
         "confidence": "low" if 25.0 <= evidence_score <= 45.0 else "medium",
         "summary": summary,
+        "wetness_score": wetness_score,
+        "motion_score": motion_score,
+        "dark_area_percent": dark_area_percent,
+        "reflection_percent": reflection_percent,
         "metrics": {
             "low_saturation_ratio": round(low_sat_ratio, 4),
             "reflection_ratio": round(reflection_ratio, 4),
