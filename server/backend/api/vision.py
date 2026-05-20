@@ -8,7 +8,7 @@ from typing import Any
 from flask import Response, jsonify, request
 
 
-VISION_NODE_URL = os.getenv("VISION_NODE_URL", "http://192.168.7.238:5000").rstrip("/")
+VISION_NODE_URL = os.getenv("VISION_NODE_URL", "http://192.168.7.218:5000").rstrip("/")
 VISION_TIMEOUT = float(os.getenv("VISION_TIMEOUT", "3.0"))
 
 
