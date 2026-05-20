@@ -440,6 +440,7 @@ function extractStreamPayload(payload: string) {
 export default function Home() {
   const [system, setSystem] = useState<any>(null);
   const [vision, setVision] = useState<any>(null);
+  const [cameras, setCameras] = useState<any>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -495,6 +496,35 @@ export default function Home() {
     }
   }, []);
 
+  const loadCameras = useCallback(async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/v1/cameras`, {
+        cache: "no-store",
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setCameras({
+          system: "cameras",
+          summary: { total: 0, online: 0, unknown: 0, external_cloud: 0 },
+          devices: [],
+          error: data?.error || "Camera subsystem unavailable",
+        });
+        return;
+      }
+
+      setCameras(data);
+    } catch (err) {
+      setCameras({
+        system: "cameras",
+        summary: { total: 0, online: 0, unknown: 0, external_cloud: 0 },
+        devices: [],
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
   const loadSessions = useCallback(async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/v1/sessions`);
@@ -508,15 +538,17 @@ export default function Home() {
   useEffect(() => {
     loadSystem();
     loadVision();
+    loadCameras();
     loadSessions();
 
     const timer = window.setInterval(() => {
       loadSystem();
       loadVision();
+      loadCameras();
     }, Number.isFinite(SYSTEM_POLL_MS) ? SYSTEM_POLL_MS : 3000);
 
     return () => window.clearInterval(timer);
-  }, [loadSystem, loadVision, loadSessions]);
+  }, [loadSystem, loadVision, loadCameras, loadSessions]);
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -529,6 +561,32 @@ export default function Home() {
   const sprinklerRaw = sprinkler?.raw || {};
   const environment = system?.environment || {};
   const decision = system?.last_decision || {};
+  const cameraSummary = cameras?.summary || {};
+  const cameraDevices = Array.isArray(cameras?.devices) ? cameras.devices : [];
+  const primaryCamera = cameraDevices[0] || {};
+
+  const cameraStatus =
+    cameraDevices.length === 0
+      ? "Unavailable"
+      : cameraSummary.online > 0
+        ? "Online"
+        : cameraSummary.unknown > 0
+          ? "Unknown"
+          : "Offline";
+
+  const cameraState: StatusState =
+    cameraDevices.length === 0
+      ? "bad"
+      : cameraSummary.online > 0
+        ? "good"
+        : cameraSummary.unknown > 0
+          ? "warn"
+          : "bad";
+
+  const cameraPrimary =
+    primaryCamera?.integration_type === "external_cloud"
+      ? "External Cloud"
+      : formatMode(primaryCamera?.integration_type || "Camera Device");
 
   const rainChance = Number(weather?.rain_chance ?? 0);
   const aiActive = String(system?.ai_status || "").toLowerCase() === "active";
@@ -1272,6 +1330,37 @@ export default function Home() {
                   label: "Confidence",
                   value: formatMode(environment?.confidence),
                   state: environment?.confidence === "high" ? "good" : "neutral",
+                },
+              ]}
+            />
+
+            <SubsystemCard
+              icon="🎥"
+              title="External Cameras"
+              subtitle="Closed vendor cameras, app-managed video, external monitoring, and Orion supervision"
+              href="/vision"
+              status={cameraStatus}
+              statusState={cameraState}
+              primary={cameraPrimary}
+              fields={[
+                {
+                  label: "Device",
+                  value: primaryCamera?.name || "No camera configured",
+                  state: cameraDevices.length > 0 ? "good" : "bad",
+                },
+                {
+                  label: "Vendor",
+                  value: primaryCamera?.vendor || "—",
+                },
+                {
+                  label: "Video",
+                  value: primaryCamera?.stream_access ? "Local Stream" : "Vendor App",
+                  state: primaryCamera?.stream_access ? "active" : "neutral",
+                },
+                {
+                  label: "Local Access",
+                  value: primaryCamera?.local_access ? "Available" : "Not exposed",
+                  state: primaryCamera?.local_access ? "good" : "warn",
                 },
               ]}
             />
