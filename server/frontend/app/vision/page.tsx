@@ -894,7 +894,7 @@ export default function VisionPage() {
 
   const rainEvidenceLabel = cameraRainDetected
     ? "Wet Surface"
-    : "Not Visually Confirmed";
+    : "Clear / Dry";
 
   return (
     <main className="min-h-screen bg-black px-6 py-8 text-white">
@@ -947,10 +947,10 @@ export default function VisionPage() {
             sub="Weather input"
           />
           <StatCard
-            label="Visual Evidence"
+            label="Visual Condition"
             value={rainEvidenceLabel}
             state={cameraRainDetected ? "warn" : "neutral"}
-            sub="Camera rain/wetness"
+            sub="Camera evidence"
           />
         </div>
 
@@ -1207,14 +1207,14 @@ export default function VisionPage() {
           </Section>
 
           <Section
-            title="Visual Evidence"
-            subtitle="Camera-assisted rain and wet-surface detection"
+            title="Visual Condition"
+            subtitle="Camera-assisted visual surface analysis"
             status={rainEvidenceLabel}
             statusState={cameraRainDetected ? "warn" : "neutral"}
           >
             <div className="grid grid-cols-2 gap-3">
               <Field
-                label="Rain"
+                label="Condition"
                 value={rainEvidenceLabel}
                 state={cameraRainDetected ? "warn" : "neutral"}
               />
@@ -1224,7 +1224,7 @@ export default function VisionPage() {
                 state={confidenceState(rainDetection?.confidence || environment?.inputs?.camera_rain_confidence)}
               />
               <Field
-                label="Wetness"
+                label="Surface Score"
                 value={formatNumber(rainDetection?.wetness_score ?? environment?.inputs?.camera_wetness_score, 3)}
               />
               <Field
@@ -1269,7 +1269,7 @@ export default function VisionPage() {
             <Field label="Temperature" value={formatTemp(weather?.temp)} />
             <Field label="Feels Like" value={formatTemp(weather?.feels_like)} />
             <Field
-              label="Rain"
+              label="Rain Chance"
               value={Number.isFinite(Number(weather?.rain_chance)) ? `${Number(weather?.rain_chance).toFixed(0)}%` : "—"}
               state={Number(weather?.rain_chance ?? 0) >= 70 ? "warn" : "neutral"}
             />
