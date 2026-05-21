@@ -209,7 +209,7 @@ function isLawnAnalysisAvailable(grassCondition?: GrassCondition | null) {
 }
 
 function lawnConditionLabel(grassCondition?: GrassCondition | null) {
-  if (!grassCondition) return "--";
+  if (!grassCondition) return "Waiting";
   if (!isLawnAnalysisAvailable(grassCondition)) return "Low Light";
 
   return formatMode(grassCondition.condition);
@@ -1121,7 +1121,7 @@ export default function VisionPage() {
             title="Lawn Condition"
             subtitle="Camera-based grass color and dryness analysis"
             status={formatMode(grassCondition?.condition || "waiting")}
-            statusState={conditionState(grassCondition?.condition)}
+            statusState={lawnState(grassCondition)}
           >
             <div className="grid grid-cols-2 gap-3">
               <Field
