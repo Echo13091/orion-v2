@@ -48,29 +48,75 @@ def first_present(*values: Any) -> Any:
 
 
 def is_lawn_analysis_available(grass_condition: Dict[str, Any]) -> bool:
-    if not isinstance(grass_condition, dict) or not grass_condition.get("ok", True):
+    condition = str(grass_condition.get("condition") or "").strip().lower()
+    valid_percent = safe_float(grass_condition.get("valid_percent"), 0.0)
+
+    if condition == "unknown":
         return False
-
-    condition = str(grass_condition.get("condition") or grass_condition.get("grass_condition") or "").strip().lower()
-    source = str(grass_condition.get("source") or "").strip().lower()
-    score = safe_float(grass_condition.get("score"), None)
-    valid_percent = safe_float(grass_condition.get("valid_percent"), None)
-
-    if condition in {"unknown", "unavailable", "waiting", "error"}:
-        return False
-
-    # New Orion backend analysis may not have the older Pi-side valid_percent field.
-    # If it has a valid score and known condition, treat it as usable.
-    if source == "orion_jetson_snapshot_analysis" and score is not None:
-        return True
 
     if valid_percent is not None and valid_percent < 5.0:
         return False
 
-    if score is not None:
+    return True
+
+
+def has_visual_wet_surface_evidence(
+    rain_detection: Dict[str, Any],
+    rain_probability: float,
+) -> bool:
+    if not isinstance(rain_detection, dict):
+        return False
+
+    if bool(rain_detection.get("rain_detected")):
         return True
 
-    return bool(condition)
+    wetness_score = safe_float(rain_detection.get("wetness_score"), 0.0) or 0.0
+    motion_score = safe_float(rain_detection.get("motion_score"), 0.0) or 0.0
+    dark_percent = safe_float(rain_detection.get("dark_percent"), 0.0) or 0.0
+    reflection_percent = safe_float(rain_detection.get("reflection_percent"), 0.0) or 0.0
+    low_saturation_percent = safe_float(
+        rain_detection.get("low_saturation_percent"),
+        0.0,
+    ) or 0.0
+
+    # Active rainfall can be hard to visually confirm from a single frame.
+    # For irrigation decisions, wet-surface evidence is still meaningful.
+    if wetness_score >= 0.20:
+        return True
+
+    if reflection_percent >= 8.0:
+        return True
+
+    if dark_percent >= 25.0 and low_saturation_percent >= 30.0:
+        return True
+
+    if rain_probability >= 0.70 and wetness_score >= 0.14:
+        return True
+
+    if rain_probability >= 0.70 and reflection_percent >= 5.0:
+        return True
+
+    if rain_probability >= 0.70 and dark_percent >= 20.0:
+        return True
+
+    if motion_score >= 0.10 and wetness_score >= 0.12:
+        return True
+
+    return False
+
+
+def visual_evidence_label(
+    *,
+    camera_rain_detected: bool,
+    visual_wet_surface_evidence: bool,
+) -> str:
+    if camera_rain_detected:
+        return "Active rain evidence"
+
+    if visual_wet_surface_evidence:
+        return "Wet surface evidence"
+
+    return "Not visually confirmed"
 
 
 def extract_next_irrigation(sprinkler: Dict[str, Any]) -> Any:
@@ -218,19 +264,7 @@ def evaluate_environment(
     lawn_analysis_available = is_lawn_analysis_available(grass_condition)
 
     grass_score = normalize_grass_score(grass_condition.get("score"))
-
-    if grass_condition.get("dryness_index") is not None:
-        dryness_index = normalize_dryness(grass_condition.get("dryness_index"))
-    else:
-        condition = str(grass_condition.get("condition") or grass_condition.get("grass_condition") or "").strip().lower()
-        if condition == "good":
-            dryness_index = 0.05
-        elif condition == "fair":
-            dryness_index = 0.35
-        elif condition == "poor":
-            dryness_index = 0.75
-        else:
-            dryness_index = normalize_dryness(None)
+    dryness_index = normalize_dryness(grass_condition.get("dryness_index"))
 
     if not lawn_analysis_available:
         grass_score = 0.5
@@ -245,9 +279,18 @@ def evaluate_environment(
     irrigation_context = summarize_irrigation_context(sprinkler)
 
     camera_rain_detected = bool(rain_detection.get("rain_detected"))
+    visual_wet_surface_evidence = has_visual_wet_surface_evidence(
+        rain_detection,
+        rain_probability,
+    )
+    visual_evidence_detected = camera_rain_detected or visual_wet_surface_evidence
     camera_rain_confidence = str(rain_detection.get("confidence") or "unknown")
     camera_wetness_score = normalize_dryness(rain_detection.get("wetness_score"))
     camera_motion_score = normalize_dryness(rain_detection.get("motion_score"))
+    camera_visual_label = visual_evidence_label(
+        camera_rain_detected=camera_rain_detected,
+        visual_wet_surface_evidence=visual_wet_surface_evidence,
+    )
 
     lawn_need = classify_lawn_need(
         grass_score=grass_score,
@@ -269,11 +312,11 @@ def evaluate_environment(
     }
 
     if irrigation_context["running"]:
-        if rain_probability >= 0.55 or camera_rain_detected:
+        if rain_probability >= 0.55 or visual_evidence_detected:
             recommendation = "stop_or_delay_irrigation"
             confidence = "high"
             reason = (
-                "Sprinkler is running while rain probability or camera wet-surface evidence is elevated. "
+                "Sprinkler is running while rain probability or visual wet-surface evidence is elevated. "
                 "Orion recommends stopping or delaying irrigation to avoid unnecessary watering."
             )
         elif lawn_need["need_level"] in {"high", "moderate"}:
@@ -294,15 +337,15 @@ def evaluate_environment(
         recommendation = "delay_irrigation"
         confidence = "high"
 
-        if camera_rain_detected and not lawn_analysis_available:
+        if visual_evidence_detected and not lawn_analysis_available:
             reason = (
-                "Rain probability is high and the environmental camera shows rain or wet-surface evidence. "
+                "Rain probability is high and the environmental camera shows wet-surface evidence. "
                 "Lawn condition is unavailable due to low light or limited visible grass. "
                 "Delay irrigation and continue monitoring."
             )
-        elif camera_rain_detected:
+        elif visual_evidence_detected:
             reason = (
-                "Rain probability is high and the environmental camera shows rain or wet-surface evidence. "
+                "Rain probability is high and the environmental camera shows wet-surface evidence. "
                 "Delay irrigation and continue monitoring lawn condition."
             )
         elif not lawn_analysis_available:
@@ -313,22 +356,22 @@ def evaluate_environment(
         else:
             reason = (
                 "Rain probability is high. Delay irrigation and continue monitoring lawn condition. "
-                "Camera has not visually confirmed active rain at this moment."
+                "The camera has not visually confirmed wet-surface or active rainfall evidence at this moment."
             )
 
     elif rain_probability >= 0.45 and lawn_need["need_level"] != "high":
         recommendation = "delay_irrigation"
-        confidence = "high" if camera_rain_detected else "medium"
+        confidence = "high" if visual_evidence_detected else "medium"
 
-        if camera_rain_detected and not lawn_analysis_available:
+        if visual_evidence_detected and not lawn_analysis_available:
             reason = (
-                "Rain is possible and the environmental camera shows rain or wet-surface evidence. "
+                "Rain is possible and the environmental camera shows wet-surface evidence. "
                 "Lawn condition is unavailable due to low light or limited visible grass. "
                 "Delay irrigation and continue monitoring."
             )
-        elif camera_rain_detected:
+        elif visual_evidence_detected:
             reason = (
-                "Rain is possible and the environmental camera shows rain or wet-surface evidence. "
+                "Rain is possible and the environmental camera shows wet-surface evidence. "
                 "Delay irrigation and monitor whether rainfall improves lawn condition."
             )
         elif not lawn_analysis_available:
@@ -421,6 +464,9 @@ def evaluate_environment(
             "extreme_heat": lawn_need["extreme_heat"],
             "low_humidity": lawn_need["low_humidity"],
             "camera_rain_detected": camera_rain_detected,
+            "visual_wet_surface_evidence": visual_wet_surface_evidence,
+            "visual_evidence_detected": visual_evidence_detected,
+            "visual_evidence_label": camera_visual_label,
             "camera_rain_confidence": camera_rain_confidence,
             "camera_wetness_score": round(camera_wetness_score, 3),
             "camera_motion_score": round(camera_motion_score, 3),

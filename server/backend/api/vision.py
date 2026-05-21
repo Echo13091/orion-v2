@@ -2,11 +2,13 @@ import colorsys
 import io
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
 
+from tools.vision_analysis import analyze_rain_detection_from_bytes
 from flask import Response, jsonify, request
 
 
@@ -428,17 +430,50 @@ def register_vision(app):
     @app.route("/v1/vision/rain-detection", methods=["GET"])
     def vision_rain_detection():
         try:
-            payload = _analyze_rain_from_snapshot()
+            with urllib.request.urlopen(
+                f"{VISION_NODE_URL}/api/snapshot?t={time.time()}",
+                timeout=VISION_TIMEOUT,
+            ) as response:
+                image_a = response.read()
+
+            image_b = None
+
+            try:
+                time.sleep(0.35)
+
+                with urllib.request.urlopen(
+                    f"{VISION_NODE_URL}/api/snapshot?t={time.time()}",
+                    timeout=VISION_TIMEOUT,
+                ) as response:
+                    image_b = response.read()
+            except Exception:
+                image_b = None
+
+            payload = analyze_rain_detection_from_bytes(
+                image_a_bytes=image_a,
+                image_b_bytes=image_b,
+                roi={
+                    "x": 0.02,
+                    "y": 0.25,
+                    "w": 0.90,
+                    "h": 0.55,
+                },
+            )
+
+            payload["node_url"] = VISION_NODE_URL
+            payload["analysis_host"] = "jetson"
+
             return jsonify(payload)
+
         except urllib.error.URLError as e:
             return _json_error(
-                "Camera rain detection unavailable",
+                "Jetson camera rain analysis unavailable",
                 503,
                 detail=str(e),
             )
         except Exception as e:
             return _json_error(
-                "Failed to analyze camera rain evidence",
+                "Failed to run Jetson camera rain analysis",
                 500,
                 detail=str(e),
             )

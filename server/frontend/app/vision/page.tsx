@@ -88,6 +88,9 @@ type EnvironmentState = {
     low_humidity?: boolean;
     lawn_analysis_available?: boolean;
     camera_rain_detected?: boolean;
+    visual_wet_surface_evidence?: boolean;
+    visual_evidence_detected?: boolean;
+    visual_evidence_label?: string;
     camera_rain_confidence?: string;
     camera_wetness_score?: number;
     camera_motion_score?: number;
@@ -193,6 +196,39 @@ function recommendationState(value?: string | null): StatusState {
   if (value === "run_short_irrigation") return "bad";
   if (value === "stop_or_delay_irrigation") return "bad";
   return "neutral";
+}
+
+function isLawnAnalysisAvailable(grassCondition?: GrassCondition | null) {
+  const condition = String(grassCondition?.condition || "").trim().toLowerCase();
+  const validPercent = Number(grassCondition?.valid_percent ?? 0);
+
+  if (condition === "unknown") return false;
+  if (Number.isFinite(validPercent) && validPercent < 5) return false;
+
+  return true;
+}
+
+function lawnConditionLabel(grassCondition?: GrassCondition | null) {
+  if (!grassCondition) return "--";
+  if (!isLawnAnalysisAvailable(grassCondition)) return "Low Light";
+
+  return formatMode(grassCondition.condition);
+}
+
+function lawnScoreLabel(grassCondition?: GrassCondition | null) {
+  if (!grassCondition) return "--";
+  if (!isLawnAnalysisAvailable(grassCondition)) return "Not Evaluated";
+
+  return Number.isFinite(Number(grassCondition.score))
+    ? `${Number(grassCondition.score).toFixed(0)} / 100`
+    : "--";
+}
+
+function lawnState(grassCondition?: GrassCondition | null): StatusState {
+  if (!grassCondition) return "neutral";
+  if (!isLawnAnalysisAvailable(grassCondition)) return "neutral";
+
+  return conditionState(grassCondition.condition);
 }
 
 function confidenceState(value?: string | null): StatusState {
@@ -827,11 +863,11 @@ export default function VisionPage() {
           : "Connect";
 
   const cameraRainDetected =
-    environment?.inputs?.camera_rain_detected || rainDetection?.rain_detected;
+    (environment?.inputs?.visual_evidence_detected || environment?.inputs?.camera_rain_detected || environment?.inputs?.visual_wet_surface_evidence) || rainDetection?.rain_detected;
 
   const rainEvidenceLabel = cameraRainDetected
-    ? "Detected"
-    : "Not visually confirmed";
+    ? "Wet Surface"
+    : "Not Visually Confirmed";
 
   return (
     <main className="min-h-screen bg-black px-6 py-8 text-white">
@@ -884,7 +920,7 @@ export default function VisionPage() {
             sub="Weather input"
           />
           <StatCard
-            label="Vision Evidence"
+            label="Visual Evidence"
             value={rainEvidenceLabel}
             state={cameraRainDetected ? "warn" : "neutral"}
             sub="Camera rain/wetness"
@@ -1090,8 +1126,8 @@ export default function VisionPage() {
             <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Condition"
-                value={formatMode(grassCondition?.condition)}
-                state={conditionState(grassCondition?.condition)}
+                value={lawnConditionLabel(grassCondition)}
+                state={lawnState(grassCondition)}
               />
               <Field
                 label="Score"
@@ -1144,7 +1180,7 @@ export default function VisionPage() {
           </Section>
 
           <Section
-            title="Visual Rain Evidence"
+            title="Visual Evidence"
             subtitle="Camera-assisted rain and wet-surface detection"
             status={rainEvidenceLabel}
             statusState={cameraRainDetected ? "warn" : "neutral"}

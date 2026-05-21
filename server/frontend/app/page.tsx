@@ -1321,10 +1321,10 @@ export default function Home() {
                 },
                 {
                   label: "Evidence",
-                  value: environment?.inputs?.camera_rain_detected
+                  value: (environment?.inputs?.visual_evidence_detected || environment?.inputs?.camera_rain_detected || environment?.inputs?.visual_wet_surface_evidence)
                     ? "Wet surface"
                     : "Not confirmed",
-                  state: environment?.inputs?.camera_rain_detected ? "warn" : "neutral",
+                  state: (environment?.inputs?.visual_evidence_detected || environment?.inputs?.camera_rain_detected || environment?.inputs?.visual_wet_surface_evidence) ? "warn" : "neutral",
                 },
                 {
                   label: "Confidence",
