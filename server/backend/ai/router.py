@@ -324,7 +324,7 @@ def summarize_recommendation_state(prompt: str | None = None) -> str:
         if running:
             lines.append(f"Orion recommends stopping irrigation because rain chance is {_fmt_percent(rain)} and the sprinkler is running.")
         else:
-            lines.append(f"Orion recommends delaying irrigation because rain chance is {_fmt_percent(rain)} and the sprinkler is not currently running.")
+            lines.append(f"Orion recommends holding irrigation because rain chance is {_fmt_percent(rain)} and the sprinkler is not currently running.")
     else:
         lines.append(f"Orion is monitoring. Rain chance is {_fmt_percent(rain)}, so irrigation is not being blocked by weather right now.")
 

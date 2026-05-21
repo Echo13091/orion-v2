@@ -34,6 +34,34 @@ function formatJson(v: any) {
   }
 }
 
+
+function formatSprinklerRecommendation(value?: string | null) {
+  if (!value) return "No recommendation";
+
+  const normalized = String(value).trim().toLowerCase();
+
+  const labels: Record<string, string> = {
+    delay_irrigation: "Delay irrigation",
+    skip_irrigation: "Skip irrigation",
+    run_irrigation: "Run irrigation",
+    normal: "Normal operation",
+    none: "No recommendation",
+  };
+
+  return labels[normalized] ?? normalized.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatYesNo(value: unknown) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "yes", "online", "ok"].includes(normalized)) return "Yes";
+    if (["false", "no", "offline", "fault"].includes(normalized)) return "No";
+  }
+  return String(value ?? "Unknown");
+}
+
 function Field({
   label,
   value: fieldValue,
@@ -169,9 +197,9 @@ export default function SprinklerPage() {
 
         <div className="grid gap-4 md:grid-cols-4">
           <Field label="Status" value={status} />
-          <Field label="Active Zone" value={running ? activeZone : "No active zone"} />
+          <Field label="Active Zone" value={running ? activeZone : "None"} />
           <Field label="Next Run" value={nextRun} />
-          <Field label="Active Relays" value={`${activeRelays} active`} />
+          <Field label="Relays Active" value={`${activeRelays} / 8 active`} />
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
@@ -188,8 +216,8 @@ export default function SprinklerPage() {
               <Field label="Health" value={sprinkler.health || raw.health} />
               <Field label="Heartbeat" value={raw.heartbeat || raw.last_heartbeat_msg_age} />
               <Field label="Controller" value={schedule.controller || "sprinkler"} />
-              <Field label="Skip Next" value={schedule.skip_next_run} />
-              <Field label="Rain Skip" value={schedule.skip_if_rain_likely} />
+              <Field label="Next Cycle Skipped" value={schedule.skip_next_run} />
+              <Field label="Rain Forecast Skip" value={schedule.skip_if_rain_likely} />
             </div>
 
             {(sprinkler.error || raw.fault_message) && (
@@ -206,7 +234,7 @@ export default function SprinklerPage() {
             </p>
 
             <div className="mt-5 grid gap-3">
-              <Field label="Recommendation" value={environment.recommendation} />
+              <Field label="Recommendation" value={formatSprinklerRecommendation(environment.recommendation)} />
               <Field label="Confidence" value={environment.confidence} />
               <Field
                 label="Rain Probability"
@@ -230,9 +258,13 @@ export default function SprinklerPage() {
         </div>
 
         <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
-          <h2 className="text-xl font-semibold">Upcoming Zone Timeline</h2>
+          
+          <div className="mb-4 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+            Next scheduled cycle is currently held because rain probability is high.
+          </div>
+<h2 className="text-xl font-semibold">Upcoming Zone Timeline</h2>
           <p className="mt-1 text-sm text-neutral-500">
-            Preview of the next irrigation cycle.
+            Preview of the next irrigation cycle. Held cycles remain visible for operator review.
           </p>
 
           {timeline.length === 0 ? (

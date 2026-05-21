@@ -173,7 +173,7 @@ def analyze_rain_detection_from_images(
         reason = "Camera evidence suggests wet outdoor surfaces."
     elif wetness_score >= 0.20 or bright_reflection_ratio >= 0.05:
         visual_evidence_type = "surface_moisture"
-        label = "Surface Moisture"
+        label = "surface moisture detected"
         confidence = "medium"
         reason = "Camera evidence suggests possible surface moisture, but not enough to classify active rainfall."
     elif mean_brightness <= 0.18 or dark_ratio >= 0.75:

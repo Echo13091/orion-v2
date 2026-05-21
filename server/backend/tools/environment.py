@@ -313,7 +313,7 @@ def evaluate_environment(
     safety = {
         "auto_execute_allowed": False,
         "requires_user_approval": True,
-        "reason": "Environmental decisions are advisory and require operator approval before hardware action.",
+        "reason": "Environmental recommendations are advisory and require operator approval before hardware action.",
     }
 
     if irrigation_context["running"]:
@@ -360,8 +360,8 @@ def evaluate_environment(
             )
         else:
             reason = (
-                "Forecast rain probability is high, so Orion recommends delaying irrigation. "
-                f"Current camera visual condition is: {camera_visual_label}."
+                "Forecast rain probability is high, so Orion recommends holding the next irrigation cycle. "
+                f"Camera evidence: {camera_visual_label}."
             )
 
     elif rain_probability >= 0.45 and lawn_need["need_level"] != "high":
