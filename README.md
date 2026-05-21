@@ -1,18 +1,66 @@
 # Orion V2 — Distributed Edge Automation Platform
 
-Orion V2 is a local-first supervisory orchestration platform for real HVAC, irrigation, thermostat, weather, and environmental vision systems.
+Orion V2 is a local-first supervisory automation platform for real HVAC, irrigation, thermostat, weather, and environmental vision systems.
 
-It runs on NVIDIA Jetson edge hardware using Docker Compose and integrates with Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, REST APIs, WebRTC video streaming, deterministic environmental logic, and AI-assisted operational recommendations.
+It runs on NVIDIA Jetson edge hardware with Docker Compose and integrates Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, REST APIs, WebRTC video streaming, deterministic environmental logic, and AI-assisted operational recommendations.
 
 Orion is not a simulated dashboard. It supervises real distributed hardware, normalizes telemetry, exposes fault state, and coordinates safe operator-approved actions.
+---
+
+## At a Glance
+
+| Area | Implementation |
+|---|---|
+| Edge host | NVIDIA Jetson running Docker Compose |
+| Frontend | Next.js, React, TypeScript |
+| Backend | Python Flask API |
+| Messaging | Mosquitto MQTT |
+| Field controllers | Raspberry Pi HVAC and irrigation controllers |
+| Edge nodes | ESP32 relay / telemetry nodes |
+| Vision node | Raspberry Pi Zero 2 W, IMX708 camera, WebRTC stream |
+| Vision interpretation | Jetson-side lawn, rain / wet-surface, and low-light analysis |
+| AI layer | Local LLM-assisted monitoring and recommendations |
+| Control model | Deterministic safety logic with operator-approved execution |
 
 ---
 
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Highlights](#highlights)
+- [Screenshots](#screenshots)
+- [What Orion Demonstrates](#what-orion-demonstrates)
+- [System Architecture](#system-architecture)
+- [Dashboard Structure](#dashboard-structure)
+- [Integrated Subsystems](#integrated-subsystems)
+- [AI-Assisted Monitoring](#ai-assisted-monitoring)
+- [Supervisory Orchestration Focus](#supervisory-orchestration-focus)
+- [Quick Start](#quick-start)
+- [Docker Deployment](#docker-deployment)
+- [API Examples](#api-examples)
+- [Technology Stack](#technology-stack)
+- [Field Controller Independence](#field-controller-independence)
+- [Reliability and Safety Design](#reliability-and-safety-design)
+- [Running Locally](#running-locally)
+- [Environment Variables](#environment-variables)
+- [Repository Structure](#repository-structure)
+- [Security Notes](#security-notes)
+- [Safety Notes](#safety-notes)
+- [Current Status](#current-status)
+- [Project Relevance](#project-relevance)
+- [Author](#author)
+- [Licensing](#licensing)
+
+
 ## Purpose
 
-Orion V2 was built to explore how a local edge platform can supervise distributed automation systems while maintaining field-controller independence, fault visibility, environmental awareness, and safe operator-approved execution.
+Orion V2 was built to explore how a local edge platform can supervise distributed automation systems while keeping field controllers independent, visible, and safe.
 
 Instead of replacing device-level logic, Orion acts as a supervisory orchestration layer above HVAC, irrigation, thermostat, weather, and environmental vision subsystems.
+
+The goal is to demonstrate a complete edge automation platform, not a simple relay dashboard.
+
+Orion is designed around one central idea: real automation systems need more than commands. They need state visibility, fault awareness, safe execution paths, and clear reasoning about why an action should or should not happen.
 
 ---
 
@@ -28,17 +76,18 @@ Instead of replacing device-level logic, Orion acts as a supervisory orchestrati
 - Raspberry Pi Zero 2 W environmental vision node
 - IMX708 camera integration
 - WebRTC environmental camera streaming
-- browser recording and snapshot controls
-- visual lawn condition analysis
-- visual rain / wet-surface evidence detection
-- weather-aware irrigation decisions
-- thermostat / HVAC detail page
-- sprinkler / irrigation detail page
-- weather intelligence detail page
-- supervisory decision center
-- fault-aware monitoring
-- manual and automatic execution modes
-- local-first architecture
+- Browser recording and snapshot controls
+- Jetson-side lawn condition interpretation
+- Jetson-side rain / wet-surface evidence evaluation
+- Low-light / dark-condition handling
+- Weather-aware irrigation decisions
+- Thermostat / HVAC detail page
+- Sprinkler / irrigation detail page
+- Weather intelligence detail page
+- Supervisory decision center
+- Fault-aware monitoring
+- Manual and automatic execution modes
+- Local-first architecture
 
 ---
 
@@ -161,18 +210,17 @@ Environmental vision runs as a separate subsystem:
 │  ├── WebRTC Stream Service                                 │
 │  ├── Snapshot Endpoint                                     │
 │  ├── Autofocus Control                                     │
-│  ├── Lawn Condition Analysis                               │
-│  ├── Visual Rain / Wet-Surface Detection                   │
-│  └── Health / Fault API                                    │
+│  └── Camera Health / Status API                            │
 └───────────────────────────┬────────────────────────────────┘
                             │
-                   REST + WebRTC Signaling
+                   REST / WebRTC Integration
                             │
 ┌───────────────────────────▼────────────────────────────────┐
-│                    Orion Backend                           │
+│                    Orion / Jetson Platform                 │
 │                                                            │
-│  Proxies vision status, snapshots, analysis, and stream     │
-│  negotiation into the Orion dashboard.                     │
+│  Displays live environmental video and evaluates vision     │
+│  context such as lawn condition, rain / wet-surface         │
+│  evidence, and low-light analysis availability.             │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -230,8 +278,9 @@ The Vision page shows:
 - focus state
 - lens position
 - frame freshness
-- visual lawn condition
-- visual rain / wet-surface evidence
+- Jetson-side lawn condition interpretation
+- Jetson-side rain / wet-surface evidence evaluation
+- Low-light / dark-condition handling
 - weather context
 - environmental recommendation
 
@@ -313,18 +362,19 @@ The sprinkler detail page displays zone timelines, relay activity, schedule stat
 
 ### Environmental Vision Node
 
-The Vision node provides:
+The Vision subsystem provides:
 
-- live environmental video
+- live environmental video from the Raspberry Pi Zero 2 W camera node
 - WebRTC streaming
 - browser recording
 - snapshot capture
 - autofocus control
 - frame freshness telemetry
-- lawn condition analysis
-- visual rain / wet-surface evidence
 - camera health status
 - fault state
+- Jetson-side lawn condition interpretation
+- Jetson-side rain / wet-surface evidence evaluation
+- low-light handling so unreliable visual readings are not treated as valid lawn data
 
 ### Environmental Decision Engine
 
@@ -390,6 +440,38 @@ This architecture allows Orion to supervise multiple device types and protocols 
 - environmental camera nodes
 
 The important design goal is normalization: different hardware backends can feed one consistent Orion model.
+
+---
+
+## Quick Start
+
+For a Jetson-based deployment:
+
+```bash
+git clone <repository-url>
+cd orion-v2
+docker compose up -d --build
+```
+
+Then open:
+
+```txt
+http://<JETSON-IP>:3001
+```
+
+Check service status:
+
+```bash
+docker compose ps
+```
+
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+For local development, see [Running Locally](#running-locally).
 
 ---
 
@@ -811,7 +893,21 @@ Planned improvements:
 
 ## Project Relevance
 
-Orion V2 demonstrates the ability to build a complete connected system across multiple layers:
+Orion V2 demonstrates the ability to build a complete connected system across multiple layers of software, hardware, networking, and controls engineering.
+
+This project is especially relevant to roles involving:
+
+- IoT engineering
+- Edge AI systems
+- Backend API development
+- Full-stack development
+- Embedded systems integration
+- Automation and controls engineering
+- Hardware-adjacent software development
+- Distributed telemetry systems
+- Computer vision infrastructure
+
+Orion V2 demonstrates:
 
 - frontend dashboard
 - backend API
