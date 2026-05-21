@@ -54,7 +54,7 @@ type EventRecord = {
 };
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5001";
+  process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
 function displayTemp(value?: number | null) {
   if (value === null || value === undefined) return "—";

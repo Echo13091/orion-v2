@@ -10,7 +10,7 @@ import {
 } from "react";
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.7.230:5001";
+  process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
 const POLL_MS = Number(process.env.NEXT_PUBLIC_SYSTEM_POLL_MS ?? "3000");
 
