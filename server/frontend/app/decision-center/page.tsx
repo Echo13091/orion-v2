@@ -206,7 +206,7 @@ export default function DecisionCenterPage() {
         action: "delay_irrigation",
         state: "warn" as StatusState,
         canApply: true,
-        applyLabel: "Apply delay",
+        applyLabel: "Approve delay",
       };
     }
 
@@ -367,10 +367,10 @@ export default function DecisionCenterPage() {
             sub="Last execution state"
           />
           <Card
-            label="Automation"
-            value={formatMode(automationMode)}
+            label="Approval Mode"
+            value={automationMode === "auto" ? "Safety Gated" : "Manual"}
             state={automationMode === "auto" ? "active" : "neutral"}
-            sub="Manual approval vs auto"
+            sub="Automated monitoring, gated execution"
           />
           <Card
             label="Faults"
@@ -441,7 +441,7 @@ export default function DecisionCenterPage() {
           <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
             <h2 className="text-xl font-semibold">Execution Control</h2>
             <p className="mt-1 text-sm text-neutral-500">
-              Switch between manual approval and automated execution mode.
+              Switch between manual approval and automated monitoring mode. Hardware actions remain safety-gated.
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
@@ -469,9 +469,7 @@ export default function DecisionCenterPage() {
                     ? "bg-blue-600 text-white"
                     : "border border-neutral-700 bg-neutral-900 text-neutral-100 hover:bg-neutral-800",
                 ].join(" ")}
-              >
-                Auto
-              </button>
+              >Auto Monitor</button>
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
