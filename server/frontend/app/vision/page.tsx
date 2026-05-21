@@ -761,14 +761,41 @@ export default function VisionPage() {
 
       await pc.setLocalDescription(offer);
 
+      await new Promise<void>((resolve) => {
+        if (pc.iceGatheringState === "complete") {
+          resolve();
+          return;
+        }
+
+        const checkState = () => {
+          if (pc.iceGatheringState === "complete") {
+            pc.removeEventListener("icegatheringstatechange", checkState);
+            resolve();
+          }
+        };
+
+        pc.addEventListener("icegatheringstatechange", checkState);
+
+        window.setTimeout(() => {
+          pc.removeEventListener("icegatheringstatechange", checkState);
+          resolve();
+        }, 3000);
+      });
+
+      const localDescription = pc.localDescription;
+
+      if (!localDescription?.sdp || !localDescription.type) {
+        throw new Error("Failed to create local WebRTC offer.");
+      }
+
       const res = await fetch(`${BACKEND_URL}/v1/vision/offer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          sdp: offer.sdp,
-          type: offer.type,
+          sdp: localDescription.sdp,
+          type: localDescription.type,
         }),
       });
 
