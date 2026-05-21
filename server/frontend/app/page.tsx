@@ -1338,7 +1338,7 @@ export default function Home() {
               icon="🎥"
               title="External Cameras"
               subtitle="Closed vendor cameras, app-managed video, external monitoring, and Orion supervision"
-              href="/vision"
+              href="/cameras"
               status={cameraStatus}
               statusState={cameraState}
               primary={cameraPrimary}
