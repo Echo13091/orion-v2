@@ -1067,7 +1067,7 @@ export default function VisionPage() {
 
             <div className="mt-4 rounded-xl border border-neutral-800 bg-black p-4 text-xs leading-5 text-neutral-300">
               {environment?.safety?.reason ||
-                "Environmental recommendations are advisory and require operator approval before hardware action."}
+                "Environmental recommendations are advisory. Hardware actions remain gated behind operator approval."}
             </div>
           </Section>
 

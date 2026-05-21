@@ -206,7 +206,7 @@ export default function DecisionCenterPage() {
         action: "delay_irrigation",
         state: "warn" as StatusState,
         canApply: true,
-        applyLabel: "Approve delay",
+        applyLabel: "Accept recommendation",
       };
     }
 
@@ -242,7 +242,7 @@ export default function DecisionCenterPage() {
     if (ok === false) return { label: "Failed", state: "bad" as StatusState };
     if (decision?.requires_execution) return { label: "Waiting", state: "neutral" as StatusState };
 
-    return { label: "Autonomous Monitoring", state: "active" as StatusState };
+    return { label: "Monitoring Only", state: "active" as StatusState };
   }, [decision, result]);
 
   async function postControl(path: string, body: Record<string, unknown> = {}) {
@@ -364,7 +364,7 @@ export default function DecisionCenterPage() {
             label="Execution"
             value={executionStatus.label}
             state={executionStatus.state}
-            sub="Last execution state"
+            sub="Hardware execution state"
           />
           <Card
             label="Approval Mode"
@@ -473,7 +473,7 @@ export default function DecisionCenterPage() {
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <Field label="Decision Action" value={decision?.action || "observe"} />
+              <Field label="System Action" value={decision?.action === "observe" ? "Monitor / no hardware command" : decision?.action || "Monitor / no hardware command"} />
               <Field label="Decision Source" value={decision?.source || "rules"} />
               <Field label="Requires Execution" value={decision?.requires_execution} />
               <Field label="Decision Time" value={formatTime(decision?.time)} />
@@ -525,7 +525,7 @@ export default function DecisionCenterPage() {
           </p>
 
           <pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-black p-4 text-xs leading-5 text-neutral-300">
-            {formatJson(controlResult || { message: "No command sent yet." })}
+            {formatJson(controlResult || { message: "Awaiting operator approval. No hardware command has been sent." })}
           </pre>
         </section>
 

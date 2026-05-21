@@ -313,7 +313,7 @@ def evaluate_environment(
     safety = {
         "auto_execute_allowed": False,
         "requires_user_approval": True,
-        "reason": "Environmental recommendations are advisory and require operator approval before hardware action.",
+        "reason": "Environmental recommendations are advisory. Hardware actions remain gated behind operator approval.",
     }
 
     if irrigation_context["running"]:
