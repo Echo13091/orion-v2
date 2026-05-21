@@ -99,6 +99,9 @@ def analyze_rain_detection_from_images(
 
     total_count = int(crop_a.shape[0] * crop_a.shape[1])
 
+    mean_brightness = float(np.mean(val)) / 255.0
+    bright_ratio = float(np.count_nonzero(val > 165)) / max(1, total_count)
+
     dark_ratio = float(np.count_nonzero(val < 75)) / max(1, total_count)
     low_saturation_ratio = float(np.count_nonzero(sat < 55)) / max(1, total_count)
     bright_reflection_ratio = float(
@@ -125,52 +128,69 @@ def analyze_rain_detection_from_images(
             motion_score = clamp(motion_score * 6.0, 0.0, 1.0)
 
     wet_surface_score = (
-        dark_ratio * 0.36
-        + low_saturation_ratio * 0.22
-        + bright_reflection_ratio * 0.18
+        dark_ratio * 0.42
+        + low_saturation_ratio * 0.24
+        + bright_reflection_ratio * 0.08
         + smoothness_score * 0.16
-        + motion_score * 0.08
+        + motion_score * 0.10
     )
 
     wetness_score = clamp(wet_surface_score, 0.0, 1.0)
 
     active_rain_detected = (
-        motion_score >= 0.10 and wetness_score >= 0.18
+        motion_score >= 0.10 and wetness_score >= 0.22
     )
 
+    # Be conservative:
+    # - Do not treat reflection alone as wet pavement.
+    # - Require multiple visual signals, because bright cars/driveways can look reflective.
     wet_surface_evidence = (
-        wetness_score >= 0.20
-        or bright_reflection_ratio >= 0.05
-        or (dark_ratio >= 0.20 and low_saturation_ratio >= 0.30)
+        wetness_score >= 0.45
+        or (dark_ratio >= 0.35 and low_saturation_ratio >= 0.35)
+        or (
+            wetness_score >= 0.30
+            and dark_ratio >= 0.25
+            and low_saturation_ratio >= 0.30
+        )
+        or (
+            dark_ratio >= 0.25
+            and low_saturation_ratio >= 0.30
+            and bright_reflection_ratio >= 0.08
+        )
     )
 
     rain_detected = active_rain_detected or wet_surface_evidence
 
     if active_rain_detected:
-        visual_evidence_type = "active_rain"
-        label = "Active rain evidence"
-    elif wet_surface_evidence:
-        visual_evidence_type = "wet_surface"
-        label = "Wet surface evidence"
-    else:
-        visual_evidence_type = "not_confirmed"
-        label = "Not visually confirmed"
-
-    if wetness_score >= 0.50 or active_rain_detected:
+        visual_evidence_type = "raining"
+        label = "Raining"
         confidence = "high"
-    elif wetness_score >= 0.20 or wet_surface_evidence:
-        confidence = "medium"
-    else:
-        confidence = "low"
-
-    if active_rain_detected:
         reason = "Camera evidence suggests active rainfall or moving rain artifacts."
     elif wet_surface_evidence:
+        visual_evidence_type = "wet_surface"
+        label = "Wet Surface"
+        confidence = "high" if wetness_score >= 0.45 else "medium"
         reason = "Camera evidence suggests wet outdoor surfaces."
-    elif wetness_score >= 0.12:
-        reason = "Camera shows limited wet-surface indicators, but visual evidence is not strong enough to confirm."
+    elif wetness_score >= 0.20 or bright_reflection_ratio >= 0.05:
+        visual_evidence_type = "surface_moisture"
+        label = "Surface Moisture"
+        confidence = "medium"
+        reason = "Camera evidence suggests possible surface moisture, but not enough to classify active rainfall."
+    elif mean_brightness <= 0.18 or dark_ratio >= 0.75:
+        visual_evidence_type = "dark_low_light"
+        label = "Dark / Low Light"
+        confidence = "medium"
+        reason = "Camera scene is dark or low-light; wet surface classification is limited."
+    elif mean_brightness >= 0.52 and bright_ratio >= 0.25:
+        visual_evidence_type = "bright_dry"
+        label = "Bright / Dry"
+        confidence = "medium"
+        reason = "Camera scene appears bright with no strong wet-surface indicators."
     else:
-        reason = "Camera does not show strong wet-surface or active rainfall evidence."
+        visual_evidence_type = "clear_dry"
+        label = "Clear / Dry"
+        confidence = "medium"
+        reason = "Camera scene does not show strong wet-surface or active rainfall indicators."
 
     return {
         "ok": True,
@@ -186,6 +206,8 @@ def analyze_rain_detection_from_images(
         "dark_percent": round(dark_ratio * 100, 1),
         "low_saturation_percent": round(low_saturation_ratio * 100, 1),
         "reflection_percent": round(bright_reflection_ratio * 100, 1),
+        "brightness_score": round(mean_brightness, 3),
+        "bright_percent": round(bright_ratio * 100, 1),
         "smoothness_score": round(smoothness_score, 3),
         "roi": roi_pixels,
         "reason": reason,

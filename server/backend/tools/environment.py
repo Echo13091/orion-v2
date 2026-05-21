@@ -79,27 +79,29 @@ def has_visual_wet_surface_evidence(
         0.0,
     ) or 0.0
 
-    # Active rainfall can be hard to visually confirm from a single frame.
-    # For irrigation decisions, wet-surface evidence is still meaningful.
-    if wetness_score >= 0.20:
+    # Keep this conservative. Forecast rain probability should not force
+    # visual wet-surface confirmation by itself.
+    if wetness_score >= 0.45:
         return True
 
-    if reflection_percent >= 8.0:
+    if dark_percent >= 35.0 and low_saturation_percent >= 35.0:
         return True
 
-    if dark_percent >= 25.0 and low_saturation_percent >= 30.0:
+    if (
+        wetness_score >= 0.30
+        and dark_percent >= 25.0
+        and low_saturation_percent >= 30.0
+    ):
         return True
 
-    if rain_probability >= 0.70 and wetness_score >= 0.14:
+    if (
+        dark_percent >= 25.0
+        and low_saturation_percent >= 30.0
+        and reflection_percent >= 8.0
+    ):
         return True
 
-    if rain_probability >= 0.70 and reflection_percent >= 5.0:
-        return True
-
-    if rain_probability >= 0.70 and dark_percent >= 20.0:
-        return True
-
-    if motion_score >= 0.10 and wetness_score >= 0.12:
+    if motion_score >= 0.10 and wetness_score >= 0.22:
         return True
 
     return False
@@ -111,12 +113,12 @@ def visual_evidence_label(
     visual_wet_surface_evidence: bool,
 ) -> str:
     if camera_rain_detected:
-        return "Active rain evidence"
+        return "Raining"
 
     if visual_wet_surface_evidence:
-        return "Wet surface evidence"
+        return "Wet Surface"
 
-    return "Not visually confirmed"
+    return "Clear / Dry"
 
 
 def extract_next_irrigation(sprinkler: Dict[str, Any]) -> Any:
@@ -287,9 +289,12 @@ def evaluate_environment(
     camera_rain_confidence = str(rain_detection.get("confidence") or "unknown")
     camera_wetness_score = normalize_dryness(rain_detection.get("wetness_score"))
     camera_motion_score = normalize_dryness(rain_detection.get("motion_score"))
-    camera_visual_label = visual_evidence_label(
-        camera_rain_detected=camera_rain_detected,
-        visual_wet_surface_evidence=visual_wet_surface_evidence,
+    camera_visual_label = str(
+        rain_detection.get("visual_evidence_label")
+        or visual_evidence_label(
+            camera_rain_detected=camera_rain_detected,
+            visual_wet_surface_evidence=visual_wet_surface_evidence,
+        )
     )
 
     lawn_need = classify_lawn_need(
@@ -355,8 +360,8 @@ def evaluate_environment(
             )
         else:
             reason = (
-                "Rain probability is high. Delay irrigation and continue monitoring lawn condition. "
-                "The camera has not visually confirmed wet-surface or active rainfall evidence at this moment."
+                "Forecast rain probability is high, so Orion recommends delaying irrigation. "
+                f"Current camera visual condition is: {camera_visual_label}."
             )
 
     elif rain_probability >= 0.45 and lawn_need["need_level"] != "high":
