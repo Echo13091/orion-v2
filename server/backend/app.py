@@ -5,6 +5,7 @@ from flask_cors import CORS
 
 from routes.thermostat_routes import thermostat_bp
 from routes.cameras import cameras_bp
+from routes.events import events_bp
 
 from api.chat import register_chat
 from api.control import register_control
@@ -28,6 +29,7 @@ CORS(
 # =====================================================
 app.register_blueprint(thermostat_bp)
 app.register_blueprint(cameras_bp)
+app.register_blueprint(events_bp)
 
 # =====================================================
 # API ROUTES
