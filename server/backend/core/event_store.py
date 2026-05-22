@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import threading
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -14,6 +15,14 @@ EVENT_LOG_PATH = Path(
         "/tmp/orion_events.jsonl",
     )
 )
+
+
+_SEED_LOCK = threading.Lock()
+_SEEDED_EVENT_KEYS = {
+    ("system", "startup", "event_store"),
+    ("irrigation", "policy_block", "automation_policy"),
+    ("hvac", "safety_policy", "safety_policy"),
+}
 
 
 def now_ts() -> float:
@@ -74,6 +83,21 @@ def record_event(
     return append_event(event)
 
 
+def _seed_events_already_present() -> bool:
+    existing = read_events(limit=500)
+
+    existing_keys = {
+        (
+            str(event.get("subsystem", "")),
+            str(event.get("event_type", "")),
+            str(event.get("source", "")),
+        )
+        for event in existing
+    }
+
+    return _SEEDED_EVENT_KEYS.issubset(existing_keys)
+
+
 def read_events(
     *,
     limit: int = 100,
@@ -115,43 +139,46 @@ def read_events(
 def seed_demo_events_if_empty() -> None:
     """
     Gives the Operations Console useful first-run data without faking live state forever.
+    This is intentionally idempotent so concurrent /v1/events requests do not duplicate seed events.
     Safe to remove later once real subsystems are emitting events.
     """
-    if EVENT_LOG_PATH.exists() and EVENT_LOG_PATH.stat().st_size > 0:
-        return
+    with _SEED_LOCK:
+        if _seed_events_already_present():
+            return
 
-    record_event(
-        subsystem="system",
-        node="orion-server",
-        severity="info",
-        event_type="startup",
-        message="Orion operations event log initialized",
-        source="event_store",
-        evidence={"event_log_path": str(EVENT_LOG_PATH)},
-    )
+        record_event(
+            subsystem="system",
+            node="orion-server",
+            severity="info",
+            event_type="startup",
+            message="Orion operations event log initialized",
+            source="event_store",
+            evidence={"event_log_path": str(EVENT_LOG_PATH)},
+        )
 
-    record_event(
-        subsystem="irrigation",
-        node="sprinkler-controller",
-        severity="warning",
-        event_type="policy_block",
-        message="Irrigation may be blocked when weather evidence indicates rain or wet conditions",
-        source="automation_policy",
-        evidence={
-            "policy": "weather_aware_irrigation",
-            "reason": "rain_or_wet_condition_guard",
-        },
-    )
+        record_event(
+            subsystem="irrigation",
+            node="sprinkler-controller",
+            severity="warning",
+            event_type="policy_block",
+            message="Irrigation may be blocked when weather evidence indicates rain or wet conditions",
+            source="automation_policy",
+            evidence={
+                "policy": "weather_aware_irrigation",
+                "reason": "rain_or_wet_condition_guard",
+            },
+        )
 
-    record_event(
-        subsystem="hvac",
-        node="hvac-controller",
-        severity="info",
-        event_type="safety_policy",
-        message="HVAC safety policies include changeover lockout and minimum runtime protection",
-        source="safety_policy",
-        evidence={
-            "changeover_lockout": True,
-            "minimum_runtime_protection": True,
-        },
-    )
+        record_event(
+            subsystem="hvac",
+            node="hvac-controller",
+            severity="info",
+            event_type="safety_policy",
+            message="HVAC safety policies include changeover lockout and minimum runtime protection",
+            source="safety_policy",
+            evidence={
+                "changeover_lockout": True,
+                "minimum_runtime_protection": True,
+            },
+        )
+
