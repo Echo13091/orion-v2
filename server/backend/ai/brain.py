@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
+from core.event_store import record_event
 from core.state import get_state_snapshot
 from memory.memory import get_baseline, get_recent_trend
 
@@ -22,6 +24,10 @@ EXECUTABLE_ACTIONS = {
     "skip_irrigation",
     "stop_sprinkler",
 }
+
+
+DECISION_EVENT_THROTTLE_SECONDS = 300.0
+_LAST_DECISION_EVENT_TS_BY_KEY: dict[str, float] = {}
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -62,6 +68,95 @@ def _sprinkler_running(sprinkler: dict[str, Any]) -> bool:
     return False
 
 
+def _should_log_decision_event(decision: dict[str, Any]) -> bool:
+    action = str(decision.get("action") or "observe")
+    source = str(decision.get("source") or "rules")
+    reason = str(decision.get("reason") or "").lower()
+    params = decision.get("params") if isinstance(decision.get("params"), dict) else {}
+    requires_execution = bool(decision.get("requires_execution"))
+
+    # Always log decisions that may execute, safety decisions, and manual override pauses.
+    if requires_execution or source in {"safety", "manual_override"}:
+        return True
+
+    # Log meaningful policy decisions even when the correct action is observe.
+    # Example: rain likely, but next irrigation run is already skipped.
+    if action == "observe" and source == "rules":
+        if "rain likely" in reason:
+            return True
+
+        if "irrigation" in reason and (
+            "skip" in reason
+            or "delay" in reason
+            or "blocked" in reason
+            or "paused" in reason
+        ):
+            return True
+
+        if "rain_chance" in params and float(params.get("rain_chance") or 0) >= 70:
+            return True
+
+    # Do not log normal heartbeat-style monitoring decisions.
+    if action == "observe" and source == "rules" and not requires_execution:
+        return False
+
+    return True
+
+
+def _record_decision_event(decision: dict[str, Any]) -> None:
+    if not _should_log_decision_event(decision):
+        return
+
+    action = str(decision.get("action") or "observe")
+    source = str(decision.get("source") or "rules")
+    reason = str(decision.get("reason") or "Automation decision generated")
+    params = decision.get("params") if isinstance(decision.get("params"), dict) else {}
+    requires_execution = bool(decision.get("requires_execution"))
+
+    key = f"{source}:{action}:{reason}:{params}"
+    now_value = time.time()
+    last_value = _LAST_DECISION_EVENT_TS_BY_KEY.get(key, 0.0)
+
+    if now_value - last_value < DECISION_EVENT_THROTTLE_SECONDS:
+        return
+
+    _LAST_DECISION_EVENT_TS_BY_KEY[key] = now_value
+
+    event_type = "automation_decision"
+
+    if requires_execution:
+        event_type = "automation_action_recommended"
+    elif source == "manual_override":
+        event_type = "automation_paused"
+    elif source == "safety":
+        event_type = "safety_decision"
+    elif action == "observe" and "rain_chance" in params:
+        event_type = "automation_policy_decision"
+
+    severity = "info"
+
+    if source == "safety":
+        severity = "warning"
+    elif action in {"stop_sprinkler", "delay_irrigation", "skip_irrigation"}:
+        severity = "warning"
+
+    record_event(
+        subsystem="automation",
+        node="orion-brain",
+        severity=severity,
+        event_type=event_type,
+        message=reason,
+        source=f"brain:{source}",
+        evidence={
+            "action": action,
+            "source": source,
+            "requires_execution": requires_execution,
+            "params": params,
+            "throttle_seconds": DECISION_EVENT_THROTTLE_SECONDS,
+        },
+    )
+
+
 def _decision(
     action: str,
     reason: str,
@@ -78,13 +173,20 @@ def _decision(
         params = {}
         source = "safety"
 
-    return {
+    decision = {
         "action": normalized,
         "reason": reason or "No reason provided",
         "params": params or {},
         "source": source,
         "requires_execution": (normalized in EXECUTABLE_ACTIONS) if requires_execution is None else bool(requires_execution),
     }
+
+    try:
+        _record_decision_event(decision)
+    except Exception as exc:
+        print(f"[OPERATIONS] Failed to record brain decision event: {exc}")
+
+    return decision
 
 
 # -------------------------
@@ -312,7 +414,7 @@ def decide_background_action() -> dict[str, Any]:
     # Manual override lock: user-started watering should not be interrupted by
     # autonomous decisions for a short safety window.
     manual_until = _safe_float(state.get("manual_override_until"), 0.0)
-    now_value = __import__("time").time()
+    now_value = time.time()
     if manual_until and manual_until > now_value:
         remaining = max(0, int(manual_until - now_value))
         return _decision(

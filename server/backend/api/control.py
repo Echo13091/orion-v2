@@ -5,6 +5,7 @@ from flask import jsonify, request
 
 from ai.brain import decide_background_action
 from ai.router import execute_background_action
+from core.event_store import record_event
 from core.state import get_state_snapshot, set_automation_mode, update_state
 from tools.device_control import (
     describe_control_capabilities,
@@ -87,6 +88,56 @@ def _record_manual_control(action: str, result, reason: str = "Manual user contr
     )
 
 
+
+def _record_operations_manual_control_event(
+    action: str,
+    result,
+    reason: str = "Manual user control",
+    evidence_extra: dict[str, Any] | None = None,
+):
+    """
+    Records manual commands into the Operations Console audit trail.
+    Kept separate from _record_manual_control so existing Orion behavior stays intact.
+    """
+    try:
+        payload = result if isinstance(result, dict) else {"result": result}
+
+        evidence = {
+            "action": action,
+            "reason": reason,
+            "result": payload,
+        }
+
+        if evidence_extra:
+            evidence.update(evidence_extra)
+
+        event_type = "manual_command"
+
+        if action == "run_sprinkler_zone":
+            event_type = "manual_zone_start"
+        elif action == "stop_sprinkler":
+            event_type = "manual_stop"
+        elif action == "run_sprinkler_program":
+            event_type = "manual_program_start"
+        elif action == "skip_next_irrigation":
+            event_type = "manual_skip"
+        elif action == "clear_skip_next_irrigation":
+            event_type = "manual_clear_skip"
+        elif action == "set_irrigation_schedule":
+            event_type = "manual_schedule_update"
+
+        record_event(
+            subsystem="irrigation",
+            node="sprinkler-controller",
+            severity="info",
+            event_type=event_type,
+            message=reason,
+            source="manual_control",
+            evidence=evidence,
+        )
+    except Exception as exc:
+        print(f"[OPERATIONS] Failed to record manual control event: {exc}")
+
 def _decision_from_request(data: dict[str, Any]) -> dict[str, Any]:
     action = _normalize_action(data.get("action"))
     params = data.get("params") if isinstance(data.get("params"), dict) else {}
@@ -105,6 +156,79 @@ def _decision_from_request(data: dict[str, Any]) -> dict[str, Any]:
         "requires_execution": action in {"stop_sprinkler", "delay_irrigation"},
     }
 
+
+_RECOMMENDATION_EVENT_CACHE: dict[str, float] = {}
+_RECOMMENDATION_EVENT_THROTTLE_SECONDS = 300.0
+
+
+def _record_operations_recommendation_event(decision: dict[str, Any]):
+    """
+    Records visible Decision Center / AI recommendation decisions into Operations.
+    This keeps the Operations Console aligned with what the user actually sees.
+    """
+    try:
+        action = str(decision.get("action") or "observe")
+        source = str(decision.get("source") or "rules")
+        reason = str(decision.get("reason") or "Automation recommendation generated")
+        params = decision.get("params") if isinstance(decision.get("params"), dict) else {}
+        requires_execution = bool(decision.get("requires_execution"))
+
+        reason_lower = reason.lower()
+
+        meaningful_policy_decision = (
+            requires_execution
+            or source in {"safety", "manual_override"}
+            or "rain likely" in reason_lower
+            or "irrigation" in reason_lower
+            or "sprinkler" in reason_lower
+            or "manual override" in reason_lower
+        )
+
+        if action == "observe" and source == "rules" and not meaningful_policy_decision:
+            return
+
+        key = f"{source}:{action}:{reason}:{params}"
+        now_value = time.time()
+        last_value = _RECOMMENDATION_EVENT_CACHE.get(key, 0.0)
+
+        if now_value - last_value < _RECOMMENDATION_EVENT_THROTTLE_SECONDS:
+            return
+
+        _RECOMMENDATION_EVENT_CACHE[key] = now_value
+
+        event_type = "automation_decision"
+
+        if requires_execution:
+            event_type = "automation_action_recommended"
+        elif source == "manual_override":
+            event_type = "automation_paused"
+        elif source == "safety":
+            event_type = "safety_decision"
+        elif "rain" in reason_lower or "irrigation" in reason_lower or "sprinkler" in reason_lower:
+            event_type = "automation_policy_decision"
+
+        severity = "info"
+
+        if source == "safety" or action in {"stop_sprinkler", "delay_irrigation", "skip_irrigation"}:
+            severity = "warning"
+
+        record_event(
+            subsystem="automation",
+            node="decision-center",
+            severity=severity,
+            event_type=event_type,
+            message=reason,
+            source=f"decision_center:{source}",
+            evidence={
+                "action": action,
+                "source": source,
+                "requires_execution": requires_execution,
+                "params": params,
+                "throttle_seconds": _RECOMMENDATION_EVENT_THROTTLE_SECONDS,
+            },
+        )
+    except Exception as exc:
+        print(f"[OPERATIONS] Failed to record recommendation event: {exc}")
 
 def register_control(app):
     @app.route("/v1/control/help", methods=["GET"])
@@ -160,6 +284,7 @@ def register_control(app):
     def ai_recommendation():
         decision = decide_background_action()
         state = get_state_snapshot()
+        _record_operations_recommendation_event(decision)
 
         return jsonify(
             {
@@ -248,18 +373,44 @@ def register_control(app):
             result,
             f"Manual run zone {zone} for {minutes} minute(s)",
         )
+        _record_operations_manual_control_event(
+            "run_sprinkler_zone",
+            result,
+            f"Manual run zone {zone} for {minutes} minute(s)",
+            {
+                "zone": zone,
+                "minutes": minutes,
+                "command": "start_zone",
+            },
+        )
         return jsonify(result)
 
     @app.route("/v1/control/sprinkler/stop", methods=["POST"])
     def sprinkler_stop():
         result = stop_sprinkler()
         _record_manual_control("stop_sprinkler", result, "Manual sprinkler stop")
+        _record_operations_manual_control_event(
+            "stop_sprinkler",
+            result,
+            "Manual sprinkler stop",
+            {
+                "command": "stop",
+            },
+        )
         return jsonify(result)
 
     @app.route("/v1/control/sprinkler/program-now", methods=["POST"])
     def sprinkler_program_now():
         result = run_sprinkler_program_now()
         _record_manual_control("run_sprinkler_program", result, "Manual sprinkler program start")
+        _record_operations_manual_control_event(
+            "run_sprinkler_program",
+            result,
+            "Manual sprinkler program start",
+            {
+                "command": "program_now",
+            },
+        )
         return jsonify(result)
 
     @app.route("/v1/control/sprinkler/skip", methods=["POST"])
@@ -280,6 +431,14 @@ def register_control(app):
             result,
             reason,
         )
+        _record_operations_manual_control_event(
+            "skip_next_irrigation",
+            result,
+            reason,
+            {
+                "command": "skip_next",
+            },
+        )
         return jsonify(result)
 
 
@@ -294,6 +453,14 @@ def register_control(app):
             "clear_skip_next_irrigation",
             result,
             "Manual clear skip-next irrigation",
+        )
+        _record_operations_manual_control_event(
+            "clear_skip_next_irrigation",
+            result,
+            "Manual clear skip-next irrigation",
+            {
+                "command": "clear_skip_next",
+            },
         )
         return jsonify(result)
 
@@ -327,6 +494,19 @@ def register_control(app):
             "set_irrigation_schedule",
             result,
             "Manual sprinkler schedule update",
+        )
+        _record_operations_manual_control_event(
+            "set_irrigation_schedule",
+            result,
+            "Manual sprinkler schedule update",
+            {
+                "command": "schedule_update",
+                "enabled": data.get("enabled"),
+                "days": data.get("days"),
+                "start_time": data.get("start_time", data.get("time")),
+                "duration_minutes": data.get("duration_minutes", data.get("minutes")),
+                "zones": data.get("zones"),
+            },
         )
         return jsonify(result)
 
