@@ -351,7 +351,8 @@ def evaluate_environment(
         elif visual_evidence_detected:
             reason = (
                 "Rain probability is high and the environmental camera shows wet-surface evidence. "
-                "Delay irrigation and continue monitoring lawn condition."
+                "Lawn condition is poor, but irrigation is held because rain probability and "
+                "wet-surface evidence override watering demand."
             )
         elif not lawn_analysis_available:
             reason = (
@@ -360,8 +361,9 @@ def evaluate_environment(
             )
         else:
             reason = (
-                "Forecast rain probability is high, so Orion recommends holding the next irrigation cycle. "
-                f"Camera evidence: {camera_visual_label}."
+                "Forecast rain probability is high and camera evidence shows wet-surface conditions. "
+                "Lawn condition is poor, but irrigation is held because rain probability and "
+                "wet-surface evidence override watering demand."
             )
 
     elif rain_probability >= 0.45 and lawn_need["need_level"] != "high":

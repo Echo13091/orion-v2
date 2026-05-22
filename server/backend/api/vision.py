@@ -13,6 +13,8 @@ from flask import Response, jsonify, request
 
 
 VISION_NODE_URL = os.getenv("VISION_NODE_URL", "http://192.168.7.218:5000").rstrip("/")
+VISION_NODE_FALLBACK_URL = os.getenv("VISION_NODE_FALLBACK_URL", "").rstrip("/")
+VISION_NODE_URLS = [url for url in [VISION_NODE_URL, VISION_NODE_FALLBACK_URL] if url]
 VISION_TIMEOUT = float(os.getenv("VISION_TIMEOUT", "3.0"))
 
 
@@ -21,6 +23,8 @@ def _json_error(message: str, status: int = 500, **extra):
         "ok": False,
         "error": message,
         "vision_node_url": VISION_NODE_URL,
+        "vision_node_fallback_url": VISION_NODE_FALLBACK_URL or None,
+        "vision_node_urls": VISION_NODE_URLS,
     }
     payload.update(extra)
     return jsonify(payload), status
@@ -146,11 +150,11 @@ def _load_snapshot_image():
             "Install it with: pip install Pillow"
         ) from exc
 
-    status_payload = _read_json(f"{VISION_NODE_URL}/api/status")
+    status_payload, active_node_url = _try_read_json("/api/status")
     settings = status_payload.get("settings") if isinstance(status_payload.get("settings"), dict) else {}
 
     data, _content_type = _read_bytes(
-        f"{VISION_NODE_URL}/api/snapshot",
+        f"{active_node_url}/api/snapshot",
         timeout=max(VISION_TIMEOUT, 10.0),
     )
 
@@ -384,9 +388,60 @@ def _analyze_rain_from_snapshot() -> dict[str, Any]:
     }
 
 
+def _try_read_json(path: str, timeout: float = VISION_TIMEOUT) -> tuple[dict[str, Any], str]:
+    last_error: Exception | None = None
+
+    for base_url in VISION_NODE_URLS:
+        try:
+            payload = _read_json(f"{base_url}{path}", timeout=timeout)
+            return payload, base_url
+        except Exception as exc:
+            last_error = exc
+
+    if last_error:
+        raise last_error
+
+    raise RuntimeError("No vision node URLs configured")
+
+
+def _try_read_bytes(path: str, timeout: float = VISION_TIMEOUT):
+    last_error: Exception | None = None
+
+    for base_url in VISION_NODE_URLS:
+        try:
+            data, content_type = _read_bytes(f"{base_url}{path}", timeout=timeout)
+            return data, content_type, base_url
+        except Exception as exc:
+            last_error = exc
+
+    if last_error:
+        raise last_error
+
+    raise RuntimeError("No vision node URLs configured")
+
+
+def _try_post_json(path: str, payload: dict[str, Any], timeout: float = VISION_TIMEOUT) -> tuple[dict[str, Any], str]:
+    last_error: Exception | None = None
+
+    for base_url in VISION_NODE_URLS:
+        try:
+            result = _post_json(f"{base_url}{path}", payload, timeout=timeout)
+            return result, base_url
+        except Exception as exc:
+            last_error = exc
+
+    if last_error:
+        raise last_error
+
+    raise RuntimeError("No vision node URLs configured")
+
+
 def get_vision_status() -> dict[str, Any]:
-    payload = _read_json(f"{VISION_NODE_URL}/api/status")
-    return _normalize_status(payload)
+    payload, active_url = _try_read_json("/api/status")
+    normalized = _normalize_status(payload)
+    normalized["node_url"] = active_url
+    normalized["configured_node_urls"] = VISION_NODE_URLS
+    return normalized
 
 
 def register_vision(app):
@@ -431,7 +486,7 @@ def register_vision(app):
     def vision_rain_detection():
         try:
             with urllib.request.urlopen(
-                f"{VISION_NODE_URL}/api/snapshot?t={time.time()}",
+                f"{active_node_url}/api/snapshot?t={time.time()}",
                 timeout=VISION_TIMEOUT,
             ) as response:
                 image_a = response.read()
@@ -442,7 +497,7 @@ def register_vision(app):
                 time.sleep(0.35)
 
                 with urllib.request.urlopen(
-                    f"{VISION_NODE_URL}/api/snapshot?t={time.time()}",
+                    f"{active_node_url}/api/snapshot?t={time.time()}",
                     timeout=VISION_TIMEOUT,
                 ) as response:
                     image_b = response.read()
@@ -481,7 +536,7 @@ def register_vision(app):
     @app.route("/v1/vision/snapshot", methods=["GET"])
     def vision_snapshot():
         try:
-            data, content_type = _read_bytes(f"{VISION_NODE_URL}/api/snapshot")
+            data, content_type, active_node_url = _try_read_bytes("/api/snapshot")
             return Response(
                 data,
                 mimetype=content_type,
@@ -517,7 +572,7 @@ def register_vision(app):
 
         try:
             result = _post_json(
-                f"{VISION_NODE_URL}/api/camera/focus",
+                f"{active_node_url}/api/camera/focus",
                 {
                     "mode": mode,
                     "manual_lens_position": lens_position,
@@ -553,7 +608,7 @@ def register_vision(app):
 
         try:
             answer = _post_json(
-                f"{VISION_NODE_URL}/offer",
+                f"{active_node_url}/offer",
                 {
                     "sdp": data.get("sdp"),
                     "type": data.get("type"),
@@ -578,7 +633,7 @@ def register_vision(app):
     @app.route("/v1/vision/restart-camera", methods=["POST"])
     def vision_restart_camera():
         try:
-            result = _post_json(f"{VISION_NODE_URL}/api/camera/restart", {})
+            result = _post_json(f"{active_node_url}/api/camera/restart", {})
             return jsonify(
                 {
                     "ok": True,

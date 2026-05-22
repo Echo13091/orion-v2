@@ -6,6 +6,7 @@ services:
       - "5001:5001"
     environment:
       VISION_NODE_URL: http://192.168.7.218:5000
+      VISION_NODE_FALLBACK_URL: http://100.69.25.43:5000
       VISION_TIMEOUT: "3.0"
     volumes:
       - ./server/backend/memory:/app/memory
