@@ -733,7 +733,7 @@ export default function Home() {
     if (rainChance >= 70) {
       return {
         title: "Delay irrigation",
-        detail: `Rain chance is ${formatPercent(rainChance)}. Orion can skip the next irrigation run.`,
+        detail: `Rain probability is ${formatPercent(rainChance)}. Orion recommends skipping the next scheduled irrigation cycle. No sprinkler output is active.`,
         action: "delay_irrigation",
         state: "warn" as StatusState,
         canApply: true,
@@ -1303,11 +1303,11 @@ export default function Home() {
             <SubsystemCard
               icon="📷"
               title="Vision"
-              subtitle="Camera stream, lawn condition, visual rain evidence, and environmental context"
+              subtitle="Camera stream, surface condition, visual rain evidence, and environmental context"
               href="/vision"
               status={visionStatus}
               statusState={visionState}
-              primary={formatMode(environment?.recommendation || "Open Vision")}
+              primary={vision?.camera_online ? "Camera Online" : "Camera Offline"}
               fields={[
                 {
                   label: "Camera",
@@ -1320,7 +1320,7 @@ export default function Home() {
                   state: Number(vision?.fps ?? 0) > 0 ? "active" : "neutral",
                 },
                 {
-                  label: "Evidence",
+                  label: "Surface Moisture",
                   value: (environment?.inputs?.visual_evidence_detected || environment?.inputs?.camera_rain_detected || environment?.inputs?.visual_wet_surface_evidence)
                     ? "Wet surface"
                     : "Not confirmed",
@@ -1339,7 +1339,7 @@ export default function Home() {
               title="External Cameras"
               subtitle="Closed vendor cameras, app-managed video, external monitoring, and Orion supervision"
               href="/cameras"
-              status={cameraStatus}
+              status={cameraStatus === "Unknown" ? "External" : cameraStatus}
               statusState={cameraState}
               primary={cameraPrimary}
               fields={[
@@ -1359,7 +1359,7 @@ export default function Home() {
                 },
                 {
                   label: "Local Access",
-                  value: primaryCamera?.local_access ? "Available" : "Not exposed",
+                  value: primaryCamera?.local_access ? "Available" : "Vendor app only",
                   state: primaryCamera?.local_access ? "good" : "warn",
                 },
               ]}
@@ -1407,7 +1407,7 @@ export default function Home() {
               fields={[
                 {
                   label: "Online",
-                  value: sprinklerOnline,
+                  value: sprinklerOnline ? "Yes" : "No",
                   state: sprinklerOnline ? "good" : "bad",
                 },
                 {

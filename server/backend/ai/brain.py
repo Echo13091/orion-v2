@@ -349,7 +349,7 @@ def decide_background_action() -> dict[str, Any]:
         if skip_next_run:
             return _decision(
                 "observe",
-                f"Rain likely ({rain_chance_value:.0f}%), and the next irrigation run is already skipped.",
+                f"Rain likely ({rain_chance_value:.0f}%). Next irrigation run is already skipped; no sprinkler output is active.",
                 params={"rain_chance": rain_chance_value},
                 source="rules",
                 requires_execution=False,
