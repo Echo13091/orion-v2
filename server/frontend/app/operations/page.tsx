@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type OrionEvent = {
@@ -160,6 +161,13 @@ export default function OperationsPage() {
     <main className="min-h-screen bg-zinc-950 px-6 py-8 text-zinc-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <header className="flex flex-col gap-2">
+          <Link
+            href="/"
+            className="mb-2 inline-flex w-fit items-center text-sm text-zinc-400 transition hover:text-zinc-100"
+          >
+            ← Back to Orion Dashboard
+          </Link>
+
           <p className="text-sm uppercase tracking-[0.25em] text-cyan-400">
             Orion V2
           </p>

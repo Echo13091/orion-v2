@@ -1093,9 +1093,10 @@ export default function Home() {
           </div>
         </header>
 
-        <nav className="mb-6 grid gap-3 md:grid-cols-5">
+        <nav className="mb-6 grid gap-3 md:grid-cols-2 lg:grid-cols-6">
           {[
             ["/decision-center", "Decision Center"],
+            ["/operations", "Operations"],
             ["/vision", "Vision"],
             ["/weather", "Weather"],
             ["/sprinkler", "Sprinkler"],
@@ -1296,6 +1297,38 @@ export default function Home() {
                   label: "Faults",
                   value: system?.fault ? "Present" : "None",
                   state: system?.fault ? "bad" : "good",
+                },
+              ]}
+            />
+
+            <SubsystemCard
+              icon="🛰️"
+              title="Operations Console"
+              subtitle="System events, active faults, node health, automation policies, and evidence history"
+              href="/operations"
+              status="Live"
+              statusState="active"
+              primary="Event Memory"
+              fields={[
+                {
+                  label: "Timeline",
+                  value: "Enabled",
+                  state: "good",
+                },
+                {
+                  label: "Faults",
+                  value: "Tracked",
+                  state: "active",
+                },
+                {
+                  label: "Policies",
+                  value: "Visible",
+                  state: "active",
+                },
+                {
+                  label: "Evidence",
+                  value: "Logged",
+                  state: "good",
                 },
               ]}
             />
