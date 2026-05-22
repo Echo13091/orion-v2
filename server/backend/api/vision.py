@@ -10,12 +10,18 @@ from typing import Any
 
 from tools.vision_analysis import analyze_rain_detection_from_bytes
 from flask import Response, jsonify, request
+from core.event_store import record_event
 
 
 VISION_NODE_URL = os.getenv("VISION_NODE_URL", "http://192.168.7.218:5000").rstrip("/")
 VISION_NODE_FALLBACK_URL = os.getenv("VISION_NODE_FALLBACK_URL", "").rstrip("/")
 VISION_NODE_URLS = [url for url in [VISION_NODE_URL, VISION_NODE_FALLBACK_URL] if url]
 VISION_TIMEOUT = float(os.getenv("VISION_TIMEOUT", "3.0"))
+
+VISION_EVENT_THROTTLE_SECONDS = float(os.getenv("VISION_EVENT_THROTTLE_SECONDS", "300"))
+_LAST_VISION_OFFLINE_EVENT_TS = 0.0
+_LAST_VISION_RECOVERY_EVENT_TS = 0.0
+_VISION_WAS_OFFLINE = False
 
 
 def _json_error(message: str, status: int = 500, **extra):
@@ -28,6 +34,68 @@ def _json_error(message: str, status: int = 500, **extra):
     }
     payload.update(extra)
     return jsonify(payload), status
+
+
+def _record_vision_offline_event(detail: str = "") -> None:
+    global _LAST_VISION_OFFLINE_EVENT_TS
+    global _VISION_WAS_OFFLINE
+
+    now = time.time()
+
+    if now - _LAST_VISION_OFFLINE_EVENT_TS < VISION_EVENT_THROTTLE_SECONDS:
+        _VISION_WAS_OFFLINE = True
+        return
+
+    _LAST_VISION_OFFLINE_EVENT_TS = now
+    _VISION_WAS_OFFLINE = True
+
+    record_event(
+        subsystem="vision",
+        node="vision-node",
+        severity="warning",
+        event_type="node_offline",
+        message="Vision node unreachable",
+        source="vision_status",
+        evidence={
+            "vision_node_url": VISION_NODE_URL,
+            "vision_node_fallback_url": VISION_NODE_FALLBACK_URL or None,
+            "vision_node_urls": VISION_NODE_URLS,
+            "detail": detail,
+            "throttle_seconds": VISION_EVENT_THROTTLE_SECONDS,
+        },
+    )
+
+
+def _record_vision_recovery_event(active_url: str = "") -> None:
+    global _LAST_VISION_RECOVERY_EVENT_TS
+    global _VISION_WAS_OFFLINE
+
+    if not _VISION_WAS_OFFLINE:
+        return
+
+    now = time.time()
+
+    if now - _LAST_VISION_RECOVERY_EVENT_TS < VISION_EVENT_THROTTLE_SECONDS:
+        _VISION_WAS_OFFLINE = False
+        return
+
+    _LAST_VISION_RECOVERY_EVENT_TS = now
+    _VISION_WAS_OFFLINE = False
+
+    record_event(
+        subsystem="vision",
+        node="vision-node",
+        severity="info",
+        event_type="node_recovered",
+        message="Vision node recovered",
+        source="vision_status",
+        evidence={
+            "active_node_url": active_url or None,
+            "vision_node_url": VISION_NODE_URL,
+            "vision_node_fallback_url": VISION_NODE_FALLBACK_URL or None,
+            "vision_node_urls": VISION_NODE_URLS,
+        },
+    )
 
 
 def _read_json(url: str, timeout: float = VISION_TIMEOUT) -> dict[str, Any]:
@@ -441,6 +509,7 @@ def get_vision_status() -> dict[str, Any]:
     normalized = _normalize_status(payload)
     normalized["node_url"] = active_url
     normalized["configured_node_urls"] = VISION_NODE_URLS
+    _record_vision_recovery_event(active_url)
     return normalized
 
 
@@ -450,6 +519,7 @@ def register_vision(app):
         try:
             return jsonify(get_vision_status())
         except urllib.error.URLError as e:
+            _record_vision_offline_event(str(e))
             return _json_error(
                 "Vision node unreachable",
                 503,
@@ -457,9 +527,10 @@ def register_vision(app):
                 online=False,
             )
         except Exception as e:
+            _record_vision_offline_event(str(e))
             return _json_error(
                 "Failed to read vision node status",
-                500,
+                503,
                 detail=str(e),
                 online=False,
             )
@@ -485,41 +556,8 @@ def register_vision(app):
     @app.route("/v1/vision/rain-detection", methods=["GET"])
     def vision_rain_detection():
         try:
-            with urllib.request.urlopen(
-                f"{active_node_url}/api/snapshot?t={time.time()}",
-                timeout=VISION_TIMEOUT,
-            ) as response:
-                image_a = response.read()
-
-            image_b = None
-
-            try:
-                time.sleep(0.35)
-
-                with urllib.request.urlopen(
-                    f"{active_node_url}/api/snapshot?t={time.time()}",
-                    timeout=VISION_TIMEOUT,
-                ) as response:
-                    image_b = response.read()
-            except Exception:
-                image_b = None
-
-            payload = analyze_rain_detection_from_bytes(
-                image_a_bytes=image_a,
-                image_b_bytes=image_b,
-                roi={
-                    "x": 0.02,
-                    "y": 0.25,
-                    "w": 0.90,
-                    "h": 0.55,
-                },
-            )
-
-            payload["node_url"] = VISION_NODE_URL
-            payload["analysis_host"] = "jetson"
-
+            payload = _analyze_rain_from_snapshot()
             return jsonify(payload)
-
         except urllib.error.URLError as e:
             return _json_error(
                 "Jetson camera rain analysis unavailable",
@@ -529,7 +567,7 @@ def register_vision(app):
         except Exception as e:
             return _json_error(
                 "Failed to run Jetson camera rain analysis",
-                500,
+                503,
                 detail=str(e),
             )
 
