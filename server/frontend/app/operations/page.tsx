@@ -120,7 +120,7 @@ export default function OperationsPage() {
   }, [events, selectedSubsystem, selectedSeverity]);
 
   const activeFaults = useMemo(() => {
-    return events.filter((event) => {
+    const faultEvents = events.filter((event) => {
       return (
         event.severity === "warning" ||
         event.severity === "critical" ||
@@ -129,6 +129,21 @@ export default function OperationsPage() {
         event.event_type === "policy_block"
       );
     });
+
+    const latestByFaultKey = new Map<string, OrionEvent>();
+
+    for (const event of faultEvents) {
+      const key = `${event.subsystem}:${event.node}:${event.event_type}`;
+      const existing = latestByFaultKey.get(key);
+
+      if (!existing || event.timestamp > existing.timestamp) {
+        latestByFaultKey.set(key, event);
+      }
+    }
+
+    return Array.from(latestByFaultKey.values()).sort(
+      (a, b) => b.timestamp - a.timestamp,
+    );
   }, [events]);
 
   const nodeHealth = useMemo(() => {

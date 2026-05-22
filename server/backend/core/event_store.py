@@ -20,7 +20,7 @@ EVENT_LOG_PATH = Path(
 _SEED_LOCK = threading.Lock()
 _SEEDED_EVENT_KEYS = {
     ("system", "startup", "event_store"),
-    ("irrigation", "policy_block", "automation_policy"),
+    ("irrigation", "policy_reference", "automation_policy"),
     ("hvac", "safety_policy", "safety_policy"),
 }
 
@@ -159,13 +159,14 @@ def seed_demo_events_if_empty() -> None:
         record_event(
             subsystem="irrigation",
             node="sprinkler-controller",
-            severity="warning",
-            event_type="policy_block",
-            message="Irrigation may be blocked when weather evidence indicates rain or wet conditions",
+            severity="info",
+            event_type="policy_reference",
+            message="Weather-aware irrigation policy is available for runtime decisions",
             source="automation_policy",
             evidence={
                 "policy": "weather_aware_irrigation",
-                "reason": "rain_or_wet_condition_guard",
+                "purpose": "rain_or_wet_condition_guard",
+                "note": "Reference policy only; not an active block.",
             },
         )
 
