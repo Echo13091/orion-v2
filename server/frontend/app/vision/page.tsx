@@ -156,6 +156,21 @@ function displayValue(value: unknown, fallback = "—") {
   return String(value);
 }
 
+function displayConfiguredEndpoint(value: unknown, label: string) {
+  if (value === null || value === undefined || value === "") return "Not configured";
+  return label;
+}
+
+function sanitizeDetail(value: unknown) {
+  const raw = String(value || "").trim();
+
+  if (!raw) return "No detail available";
+
+  return raw
+    .replace(/https?:\/\/[^\s"'<>]+/g, "[endpoint]")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[ip]");
+}
+
 function formatNumber(value: unknown, digits = 1) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(digits) : "—";
@@ -1077,15 +1092,21 @@ export default function VisionPage() {
                   <div className="mt-4 grid gap-2 text-left text-xs text-neutral-300">
                     <p>
                       <span className="text-neutral-500">Primary:</span>{" "}
-                      {displayValue(vision?.vision_node_url || vision?.node_url)}
+                      {displayConfiguredEndpoint(
+                        vision?.vision_node_url || vision?.node_url,
+                        "Local vision endpoint configured",
+                      )}
                     </p>
                     <p>
                       <span className="text-neutral-500">Fallback:</span>{" "}
-                      {displayValue(vision?.vision_node_fallback_url)}
+                      {displayConfiguredEndpoint(
+                        vision?.vision_node_fallback_url,
+                        "Private fallback endpoint configured",
+                      )}
                     </p>
                     <p>
                       <span className="text-neutral-500">Detail:</span>{" "}
-                      {displayValue(vision?.detail || vision?.error || vision?.message)}
+                      {sanitizeDetail(vision?.detail || vision?.error || vision?.message)}
                     </p>
                   </div>
                 </div>
@@ -1118,7 +1139,11 @@ export default function VisionPage() {
               disabled={streamState !== "connected"}
               variant={recording ? "danger" : "success"}
             >
-              {recording ? "Stop Recording" : "Record Clip"}
+              {recording
+                ? "Stop Recording"
+                : streamState === "connected"
+                  ? "Record Clip"
+                  : "Recording Unavailable"}
             </Button>
 
             <Button
