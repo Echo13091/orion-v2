@@ -88,6 +88,8 @@ export default function OperationsPage() {
   const [error, setError] = useState<string>("");
   const [selectedSubsystem, setSelectedSubsystem] = useState<string>("all");
   const [selectedSeverity, setSelectedSeverity] = useState<string>("all");
+  const [selectedEventType, setSelectedEventType] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   async function loadEvents() {
     try {
@@ -152,7 +154,13 @@ export default function OperationsPage() {
     return Array.from(new Set(events.map((event) => event.subsystem))).sort();
   }, [events]);
 
+  const eventTypes = useMemo(() => {
+    return Array.from(new Set(events.map((event) => event.event_type))).sort();
+  }, [events]);
+
   const filteredEvents = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
     return events.filter((event) => {
       const subsystemMatch =
         selectedSubsystem === "all" || event.subsystem === selectedSubsystem;
@@ -160,9 +168,32 @@ export default function OperationsPage() {
       const severityMatch =
         selectedSeverity === "all" || event.severity === selectedSeverity;
 
-      return subsystemMatch && severityMatch;
+      const eventTypeMatch =
+        selectedEventType === "all" || event.event_type === selectedEventType;
+
+      const searchableText = [
+        event.message,
+        event.subsystem,
+        event.node,
+        event.severity,
+        event.event_type,
+        event.source,
+        JSON.stringify(event.evidence ?? {}),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      const searchMatch = !query || searchableText.includes(query);
+
+      return subsystemMatch && severityMatch && eventTypeMatch && searchMatch;
     });
-  }, [events, selectedSubsystem, selectedSeverity]);
+  }, [
+    events,
+    selectedSubsystem,
+    selectedSeverity,
+    selectedEventType,
+    searchQuery,
+  ]);
 
   const activeFaults = useMemo(() => {
     const faultEvents = events.filter((event) => {
@@ -297,6 +328,13 @@ export default function OperationsPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search events..."
+                  className="min-w-48 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600"
+                />
+
                 <select
                   value={selectedSubsystem}
                   onChange={(event) => setSelectedSubsystem(event.target.value)}
@@ -320,6 +358,36 @@ export default function OperationsPage() {
                   <option value="warning">Warning</option>
                   <option value="critical">Critical</option>
                 </select>
+
+                <select
+                  value={selectedEventType}
+                  onChange={(event) => setSelectedEventType(event.target.value)}
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200"
+                >
+                  <option value="all">All event types</option>
+                  {eventTypes.map((eventType) => (
+                    <option key={eventType} value={eventType}>
+                      {eventTypeLabel(eventType)}
+                    </option>
+                  ))}
+                </select>
+
+                {(selectedSubsystem !== "all" ||
+                  selectedSeverity !== "all" ||
+                  selectedEventType !== "all" ||
+                  searchQuery.trim()) && (
+                  <button
+                    onClick={() => {
+                      setSelectedSubsystem("all");
+                      setSelectedSeverity("all");
+                      setSelectedEventType("all");
+                      setSearchQuery("");
+                    }}
+                    className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             </div>
 
