@@ -70,6 +70,46 @@ function eventTypeLabel(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function operationalImpact(event: OrionEvent) {
+  if (event.subsystem === "vision" && event.event_type === "node_offline") {
+    return "Impact: camera stream, snapshots, lawn condition, and visual rain evidence are unavailable. Orion continues operating with weather, sprinkler, thermostat, and event telemetry.";
+  }
+
+  if (event.subsystem === "vision" && event.event_type === "node_recovered") {
+    return "Impact: camera telemetry recovered. Vision-based lawn and wet-surface evidence can resume after the next successful analysis cycle.";
+  }
+
+  if (event.event_type === "automation_policy_decision") {
+    return "Impact: Orion evaluated policy context and updated the visible decision trail without directly bypassing hardware safety gates.";
+  }
+
+  if (event.event_type === "automation_action_recommended") {
+    return "Impact: Orion generated an action recommendation. Hardware execution still requires the configured safety path and approval mode.";
+  }
+
+  if (event.event_type === "manual_zone_start") {
+    return "Impact: a manual irrigation command was issued and recorded for audit visibility.";
+  }
+
+  if (event.event_type === "manual_stop") {
+    return "Impact: a manual stop command was issued and recorded for audit visibility.";
+  }
+
+  if (event.event_type === "state_transition") {
+    return "Impact: Orion detected a subsystem state change and preserved the transition evidence.";
+  }
+
+  if (event.severity === "critical") {
+    return "Impact: critical subsystem condition detected. Operator review is required before relying on related automation.";
+  }
+
+  if (event.severity === "warning") {
+    return "Impact: degraded or warning condition detected. Orion should continue using available trusted telemetry only.";
+  }
+
+  return "";
+}
+
 function EvidenceBlock({ evidence }: { evidence?: Record<string, unknown> }) {
   if (!evidence || Object.keys(evidence).length === 0) {
     return <span className="text-zinc-500">No evidence attached</span>;
@@ -252,6 +292,37 @@ export default function OperationsPage() {
     return events.filter((event) => event.event_type === "state_transition");
   }, [events]);
 
+  function applyQuickFilter(kind: "all" | "faults" | "vision" | "automation" | "manual" | "transitions") {
+    setSearchQuery("");
+    setSelectedSubsystem("all");
+    setSelectedSeverity("all");
+    setSelectedEventType("all");
+
+    if (kind === "faults") {
+      setSelectedSeverity("warning");
+      return;
+    }
+
+    if (kind === "vision") {
+      setSelectedSubsystem("vision");
+      return;
+    }
+
+    if (kind === "automation") {
+      setSelectedSubsystem("automation");
+      return;
+    }
+
+    if (kind === "manual") {
+      setSearchQuery("manual");
+      return;
+    }
+
+    if (kind === "transitions") {
+      setSelectedEventType("state_transition");
+    }
+  }
+
   return (
     <main className="min-h-screen bg-zinc-950 px-6 py-8 text-zinc-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -317,6 +388,80 @@ export default function OperationsPage() {
           </div>
         </section>
 
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Degraded Subsystems</h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                Current warning/critical conditions with operational impact and fallback context.
+              </p>
+            </div>
+
+            <span
+              className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${
+                activeFaults.length
+                  ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-200"
+                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+              }`}
+            >
+              {activeFaults.length ? "Review Required" : "No Degraded Subsystems"}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {activeFaults.length === 0 ? (
+              <div className="rounded-xl border border-zinc-800 bg-black/20 p-4 text-sm text-zinc-400">
+                No warning, critical, offline-node, or policy-block events are currently active.
+              </div>
+            ) : (
+              activeFaults.slice(0, 4).map((event) => (
+                <article
+                  key={event.id}
+                  className="rounded-xl border border-zinc-800 bg-black/20 p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-xs ${severityClass(
+                          event.severity,
+                        )}`}
+                      >
+                        {event.severity}
+                      </span>
+
+                      <span className="rounded-full border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-300">
+                        {event.subsystem}
+                      </span>
+
+                      <span className="rounded-full border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-300">
+                        {eventTypeLabel(event.event_type)}
+                      </span>
+                    </div>
+
+                    <span className="text-xs text-zinc-500">
+                      {formatTime(event.timestamp)}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-3 text-sm font-semibold text-zinc-100">
+                    {event.message}
+                  </h3>
+
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Node: {event.node} · Source: {event.source}
+                  </p>
+
+                  {operationalImpact(event) ? (
+                    <p className="mt-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 text-xs leading-5 text-yellow-100/90">
+                      {operationalImpact(event)}
+                    </p>
+                  ) : null}
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
         <section className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 lg:col-span-2">
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -328,6 +473,48 @@ export default function OperationsPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => applyQuickFilter("all")}
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+                >
+                  All
+                </button>
+
+                <button
+                  onClick={() => applyQuickFilter("faults")}
+                  className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200 hover:bg-yellow-500/20"
+                >
+                  Faults
+                </button>
+
+                <button
+                  onClick={() => applyQuickFilter("vision")}
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+                >
+                  Vision
+                </button>
+
+                <button
+                  onClick={() => applyQuickFilter("automation")}
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+                >
+                  Automation
+                </button>
+
+                <button
+                  onClick={() => applyQuickFilter("manual")}
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+                >
+                  Manual
+                </button>
+
+                <button
+                  onClick={() => applyQuickFilter("transitions")}
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+                >
+                  Transitions
+                </button>
+
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
@@ -520,6 +707,12 @@ export default function OperationsPage() {
                       <p className="mt-2 text-sm text-zinc-200">
                         {event.message}
                       </p>
+
+                      {operationalImpact(event) ? (
+                        <p className="mt-2 text-xs leading-5 text-zinc-400">
+                          {operationalImpact(event)}
+                        </p>
+                      ) : null}
                     </div>
                   ))
                 )}
