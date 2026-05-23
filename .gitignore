@@ -60,3 +60,6 @@ server/backend/data/*.json
 
 # Local frontend environment
 server/frontend/.env.production
+
+# Orion runtime event logs
+server/backend/memory/orion_events.jsonl

@@ -8,6 +8,7 @@ services:
       VISION_NODE_URL: http://192.168.7.218:5000
       VISION_NODE_FALLBACK_URL: http://100.69.25.43:5000
       VISION_TIMEOUT: "3.0"
+      ORION_EVENT_LOG_PATH: /app/memory/orion_events.jsonl
     volumes:
       - ./server/backend/memory:/app/memory
       - orion_backend_logs:/app/logs

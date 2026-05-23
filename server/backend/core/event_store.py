@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 EVENT_LOG_PATH = Path(
     os.getenv(
         "ORION_EVENT_LOG_PATH",
-        "/tmp/orion_events.jsonl",
+        "/app/memory/orion_events.jsonl",
     )
 )
 
