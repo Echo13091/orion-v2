@@ -1,7 +1,78 @@
 from flask import jsonify, request
 
+from core.event_store import record_state_transition
 from core.state import get_state_snapshot, update_state
 from tools.environment import evaluate_environment
+
+
+_LAST_IRRIGATION_RUNTIME_STATE = None
+
+
+def _runtime_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, str):
+        return value.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+            "running",
+            "active",
+        }
+
+    return bool(value)
+
+
+def _sprinkler_runtime_state(sprinkler: dict) -> tuple[str, object]:
+    running = (
+        _runtime_bool(sprinkler.get("running"))
+        or _runtime_bool(sprinkler.get("active"))
+        or _runtime_bool(sprinkler.get("cycle_running"))
+        or _runtime_bool(sprinkler.get("is_running"))
+        or str(sprinkler.get("status") or "").strip().lower() == "running"
+    )
+
+    zone = sprinkler.get("zone") or sprinkler.get("active_zone")
+
+    if running:
+        return "manual_zone_running", zone
+
+    return "idle", zone
+
+
+def _record_irrigation_runtime_transition_if_changed(sprinkler: dict) -> None:
+    global _LAST_IRRIGATION_RUNTIME_STATE
+
+    try:
+        current_state, zone = _sprinkler_runtime_state(sprinkler)
+
+        if _LAST_IRRIGATION_RUNTIME_STATE is None:
+            _LAST_IRRIGATION_RUNTIME_STATE = current_state
+            return
+
+        previous_state = _LAST_IRRIGATION_RUNTIME_STATE
+
+        if previous_state == current_state:
+            return
+
+        _LAST_IRRIGATION_RUNTIME_STATE = current_state
+
+        record_state_transition(
+            subsystem="irrigation",
+            node="sprinkler-controller",
+            from_state=previous_state,
+            to_state=current_state,
+            reason="Runtime sprinkler state changed",
+            source="runtime_state_monitor",
+            evidence={
+                "zone": zone,
+                "sprinkler": sprinkler,
+            },
+        )
+    except Exception as exc:
+        print(f"[OPERATIONS] Failed to record irrigation runtime transition: {exc}")
 
 
 def register_system(app):
@@ -11,6 +82,7 @@ def register_system(app):
 
         weather = state.get("weather") or {}
         sprinkler = state.get("sprinkler") or {}
+        _record_irrigation_runtime_transition_if_changed(sprinkler)
 
         grass_condition = None
         rain_detection = None
