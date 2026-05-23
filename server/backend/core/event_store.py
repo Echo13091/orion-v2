@@ -136,6 +136,36 @@ def read_events(
     return events[:limit]
 
 
+
+def record_state_transition(
+    *,
+    subsystem: str,
+    node: str,
+    from_state: str,
+    to_state: str,
+    reason: str,
+    source: str = "state_machine",
+    evidence: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    transition_evidence = {
+        "from_state": from_state,
+        "to_state": to_state,
+        "reason": reason,
+    }
+
+    if evidence:
+        transition_evidence.update(evidence)
+
+    return record_event(
+        subsystem=subsystem,
+        node=node,
+        severity="info",
+        event_type="state_transition",
+        message=f"{subsystem} transitioned from {from_state} to {to_state}",
+        source=source,
+        evidence=transition_evidence,
+    )
+
 def seed_demo_events_if_empty() -> None:
     """
     Gives the Operations Console useful first-run data without faking live state forever.

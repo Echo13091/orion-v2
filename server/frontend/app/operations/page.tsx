@@ -172,6 +172,10 @@ export default function OperationsPage() {
     });
   }, [events]);
 
+  const transitionEvents = useMemo(() => {
+    return events.filter((event) => event.event_type === "state_transition");
+  }, [events]);
+
   return (
     <main className="min-h-screen bg-zinc-950 px-6 py-8 text-zinc-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -404,6 +408,50 @@ export default function OperationsPage() {
                       </p>
                     </div>
                   ))
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+              <h2 className="text-lg font-semibold">State Transitions</h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                Recent subsystem state changes and execution transitions.
+              </p>
+
+              <div className="mt-4 flex flex-col gap-3">
+                {transitionEvents.length === 0 ? (
+                  <p className="rounded-xl border border-zinc-800 bg-black/20 p-3 text-sm text-zinc-500">
+                    No state transitions yet.
+                  </p>
+                ) : (
+                  transitionEvents.slice(0, 6).map((event) => {
+                    const fromState =
+                      typeof event.evidence?.from_state === "string"
+                        ? event.evidence.from_state
+                        : "unknown";
+
+                    const toState =
+                      typeof event.evidence?.to_state === "string"
+                        ? event.evidence.to_state
+                        : "unknown";
+
+                    return (
+                      <div
+                        key={event.id}
+                        className="rounded-xl border border-zinc-800 bg-black/20 p-3"
+                      >
+                        <p className="text-sm font-medium text-zinc-100">
+                          {event.subsystem}
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-300">
+                          {fromState} → {toState}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {event.message}
+                        </p>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </section>

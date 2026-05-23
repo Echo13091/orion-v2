@@ -5,7 +5,7 @@ from flask import jsonify, request
 
 from ai.brain import decide_background_action
 from ai.router import execute_background_action
-from core.event_store import record_event
+from core.event_store import record_event, record_state_transition
 from core.state import get_state_snapshot, set_automation_mode, update_state
 from tools.device_control import (
     describe_control_capabilities,
@@ -137,6 +137,32 @@ def _record_operations_manual_control_event(
         )
     except Exception as exc:
         print(f"[OPERATIONS] Failed to record manual control event: {exc}")
+
+def _record_irrigation_transition(
+    *,
+    from_state: str,
+    to_state: str,
+    reason: str,
+    evidence_extra: dict[str, Any] | None = None,
+):
+    """
+    Records irrigation state transitions for the Operations Console.
+    Example: idle -> manual_zone_running -> idle.
+    """
+    try:
+        evidence = evidence_extra or {}
+
+        record_state_transition(
+            subsystem="irrigation",
+            node="sprinkler-controller",
+            from_state=from_state,
+            to_state=to_state,
+            reason=reason,
+            source="manual_control",
+            evidence=evidence,
+        )
+    except Exception as exc:
+        print(f"[OPERATIONS] Failed to record irrigation state transition: {exc}")
 
 def _decision_from_request(data: dict[str, Any]) -> dict[str, Any]:
     action = _normalize_action(data.get("action"))
@@ -383,6 +409,17 @@ def register_control(app):
                 "command": "start_zone",
             },
         )
+        _record_irrigation_transition(
+            from_state="idle",
+            to_state="manual_zone_running",
+            reason=f"Manual run zone {zone} for {minutes} minute(s)",
+            evidence_extra={
+                "zone": zone,
+                "minutes": minutes,
+                "command": "start_zone",
+                "result": result,
+            },
+        )
         return jsonify(result)
 
     @app.route("/v1/control/sprinkler/stop", methods=["POST"])
@@ -395,6 +432,15 @@ def register_control(app):
             "Manual sprinkler stop",
             {
                 "command": "stop",
+            },
+        )
+        _record_irrigation_transition(
+            from_state="manual_zone_running",
+            to_state="idle",
+            reason="Manual sprinkler stop",
+            evidence_extra={
+                "command": "stop",
+                "result": result,
             },
         )
         return jsonify(result)
