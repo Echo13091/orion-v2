@@ -622,13 +622,32 @@ GET /v1/system
 
 ### Operations
 
-```txt
-GET /v1/events
-GET /v1/events?compact=true
-GET /v1/events?subsystem=irrigation
-GET /v1/events?severity=warning
-GET /v1/events?event_type=state_transition
-```
+Operations API endpoints:
+
+- `GET /v1/events` — raw Operations event history
+- `GET /v1/events?compact=true` — compacted timeline events with repeat counts, first-seen time, latest-seen time, and latest evidence
+- `GET /v1/faults` — current degraded subsystem and active fault state
+- `GET /v1/faults?include_recovered=true` — fault summary including recovered faults
+- `GET /v1/events?subsystem=irrigation` — events filtered by subsystem
+- `GET /v1/events?severity=warning` — events filtered by severity
+- `GET /v1/events?event_type=state_transition` — events filtered by event type
+
+Example fault summary fields:
+
+- `key`
+- `subsystem`
+- `node`
+- `status`
+- `severity`
+- `event_type`
+- `message`
+- `first_seen`
+- `last_seen`
+- `repeat_count`
+- `recovered_at`
+- `impact`
+
+The Operations Console uses `/v1/faults` for degraded subsystem and active fault state, and `/v1/events?compact=true` for the compacted event timeline.
 
 ### Vision
 
