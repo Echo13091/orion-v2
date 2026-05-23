@@ -118,6 +118,12 @@ Clean command overview for system health, recommendations, subsystem status, aut
 
 Live environmental camera stream with camera health, lawn condition, visual rain evidence, weather context, and irrigation impact.
 
+### Operations Console — Degraded Subsystem Handling
+
+![Orion Operations Console](docs/screenshots/orion-operations-console.jpeg)
+
+Operations view showing degraded subsystem state, active faults, compacted repeated events, node health, operational impact messages, and continued operation with trusted telemetry.
+
 ### Irrigation Controller
 
 ![Orion Sprinkler Node](docs/screenshots/orion-sprinkler-node.jpeg)
