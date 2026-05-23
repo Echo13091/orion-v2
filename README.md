@@ -36,6 +36,7 @@ Orion is not a simulated dashboard. It supervises real distributed hardware, nor
 - [Integrated Subsystems](#integrated-subsystems)
 - [AI-Assisted Monitoring](#ai-assisted-monitoring)
 - [Operations Console](#operations-console)
+- [Degraded Subsystem Handling](#degraded-subsystem-handling)
 - [Supervisory Orchestration Focus](#supervisory-orchestration-focus)
 - [Quick Start](#quick-start)
 - [Docker Deployment](#docker-deployment)
@@ -89,6 +90,9 @@ Orion is designed around one central idea: real automation systems need more tha
 - Weather intelligence detail page
 - Supervisory decision center
 - Operations Console
+- Degraded subsystem visibility
+- Compacted repeated event timeline
+- Operational impact messages for faults and offline nodes
 - Event timeline and operational audit trail
 - Fault-aware monitoring
 - Manual command audit events
@@ -285,6 +289,7 @@ Decision Center recommendations are recorded into the Operations event history w
 The Operations Console shows:
 
 - event timeline
+- degraded subsystem panel
 - active faults
 - node health
 - automation policy decisions
@@ -292,6 +297,9 @@ The Operations Console shows:
 - state transition history
 - execution evidence
 - controller acknowledgements
+- operational impact messages
+- compacted repeated events
+- quick filters for faults, vision, automation, manual commands, and transitions
 
 Example Operations events:
 
@@ -468,6 +476,37 @@ The AI layer can:
 - support structured recommendations
 
 The AI does not bypass deterministic safety logic. Hardware actions are routed through the control layer.
+
+---
+
+## Degraded Subsystem Handling
+
+Orion is designed to keep operating when a subsystem becomes unavailable.
+
+When the environmental vision node is offline, Orion does not treat missing camera data as valid visual evidence. The Vision page enters a degraded mode and clearly marks camera-derived information as unavailable.
+
+In degraded vision mode:
+
+- camera stream is unavailable
+- snapshots are unavailable
+- lawn analysis is unavailable
+- visual rain and wet-surface evidence are unavailable
+- weather and controller telemetry remain active
+- environmental recommendations continue using trusted available inputs
+- unavailable sensor data is not treated as valid evidence
+
+The Operations Console surfaces degraded subsystem state as first-class operational information. Repeated events such as `Vision node unreachable` are compacted into a single timeline card with repeat count, first-seen time, latest-seen time, latest evidence, and operational impact.
+
+Example compacted Operations timeline entry:
+
+- Event: Vision node unreachable
+- Repeat count: x11
+- First seen: May 22, 9:53 PM
+- Latest: May 23, 1:42 PM
+- Impact: camera stream, snapshots, lawn condition, and visual rain evidence are unavailable.
+- Fallback: Orion continues operating with weather, sprinkler, thermostat, and event telemetry.
+
+This keeps the timeline readable while preserving the operational history and evidence trail.
 
 ---
 
@@ -793,7 +832,9 @@ Key reliability concepts include:
 - systemd-managed field services
 - runtime state persistence
 - fault visibility
+- degraded subsystem visibility
 - operations event history
+- compacted repeated event timeline
 - command audit trail
 - state transition history
 - stale telemetry detection
@@ -813,8 +854,10 @@ Important safety goals include:
 
 - do not blindly assume hardware commands succeed
 - expose active faults clearly
+- expose degraded subsystem state clearly
 - separate recommendation from execution
 - avoid running automation when hardware is unavailable
+- avoid treating unavailable sensor data as valid evidence
 - detect offline field nodes
 - show last decision and recommendation
 - provide manual override behavior
@@ -967,6 +1010,9 @@ Working features:
 - clean main operations dashboard
 - dedicated subsystem detail pages
 - Operations Console
+- Operations degraded subsystem panel
+- Operations quick filters
+- Operations repeated-event compaction
 - `/v1/events` event API
 - structured event timeline
 - active fault visibility
@@ -989,6 +1035,8 @@ Working features:
 - thermostat state normalization
 - sprinkler integration support
 - environmental vision node integration
+- vision degraded-mode handling
+- unavailable camera evidence handling
 - embedded WebRTC camera stream
 - browser recording for vision stream
 - snapshot support
@@ -1060,6 +1108,8 @@ Orion V2 demonstrates:
 - relay control
 - persistent state
 - fault handling
+- degraded subsystem handling
+- compacted operations timeline
 - event timeline
 - command audit trail
 - state transition history
