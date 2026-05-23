@@ -96,13 +96,40 @@ def _format_schedule_reply(value: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _control_result_ok(value: dict[str, Any]) -> bool:
+    if bool(value.get("ok")):
+        return True
+
+    result = value.get("result") if isinstance(value.get("result"), dict) else {}
+    if bool(result.get("ok")):
+        return True
+
+    nested_result = result.get("result") if isinstance(result.get("result"), dict) else {}
+    if bool(nested_result.get("ok")):
+        return True
+
+    if result.get("normalized_status") == "accepted_redirect":
+        return True
+
+    if nested_result.get("normalized_status") == "accepted_redirect":
+        return True
+
+    if result.get("controller_acknowledged") is True:
+        return True
+
+    if nested_result.get("controller_acknowledged") is True:
+        return True
+
+    return False
+
+
 def _format_control_reply(value: dict[str, Any]) -> str:
     """Turn backend control JSON into a concise assistant message.
 
     The raw command result can contain endpoint attempts and device internals.
     That is useful for logs, but it is not useful as the primary chat reply.
     """
-    ok = bool(value.get("ok"))
+    ok = _control_result_ok(value)
 
     if ok:
         action = str(value.get("action") or "").strip()
