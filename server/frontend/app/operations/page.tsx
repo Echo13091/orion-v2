@@ -15,6 +15,13 @@ type OrionEvent = {
   evidence?: Record<string, unknown>;
 };
 
+type CompactEvent = OrionEvent & {
+  repeat_count: number;
+  first_seen: number;
+  latest_seen: number;
+  repeated_events: OrionEvent[];
+};
+
 type EventsResponse = {
   ok: boolean;
   count: number;
@@ -108,6 +115,52 @@ function operationalImpact(event: OrionEvent) {
   }
 
   return "";
+}
+
+function compactEventKey(event: OrionEvent) {
+  return [
+    event.subsystem,
+    event.node,
+    event.severity,
+    event.event_type,
+    event.message,
+    event.source,
+  ].join("::");
+}
+
+function compactEvents(events: OrionEvent[]): CompactEvent[] {
+  const compacted = new Map<string, CompactEvent>();
+
+  for (const event of events) {
+    const key = compactEventKey(event);
+    const existing = compacted.get(key);
+
+    if (!existing) {
+      compacted.set(key, {
+        ...event,
+        repeat_count: 1,
+        first_seen: event.timestamp,
+        latest_seen: event.timestamp,
+        repeated_events: [event],
+      });
+      continue;
+    }
+
+    existing.repeat_count += 1;
+    existing.first_seen = Math.min(existing.first_seen, event.timestamp);
+    existing.latest_seen = Math.max(existing.latest_seen, event.timestamp);
+    existing.repeated_events.push(event);
+
+    if (event.timestamp >= existing.timestamp) {
+      existing.id = event.id;
+      existing.timestamp = event.timestamp;
+      existing.evidence = event.evidence;
+    }
+  }
+
+  return Array.from(compacted.values()).sort(
+    (a, b) => b.latest_seen - a.latest_seen,
+  );
 }
 
 function EvidenceBlock({ evidence }: { evidence?: Record<string, unknown> }) {
@@ -234,6 +287,10 @@ export default function OperationsPage() {
     selectedEventType,
     searchQuery,
   ]);
+
+  const compactedFilteredEvents = useMemo(() => {
+    return compactEvents(filteredEvents);
+  }, [filteredEvents]);
 
   const activeFaults = useMemo(() => {
     const faultEvents = events.filter((event) => {
@@ -579,14 +636,14 @@ export default function OperationsPage() {
             </div>
 
             <div className="flex flex-col gap-3">
-              {filteredEvents.length === 0 ? (
+              {compactedFilteredEvents.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-black/20 p-4 text-sm text-zinc-500">
                   No events found.
                 </div>
               ) : (
-                filteredEvents.map((event) => (
+                compactedFilteredEvents.map((event) => (
                   <article
-                    key={event.id}
+                    key={`${event.id}:${event.repeat_count}`}
                     className="rounded-2xl border border-zinc-800 bg-black/20 p-4"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -607,6 +664,12 @@ export default function OperationsPage() {
                           <span className="rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300">
                             {eventTypeLabel(event.event_type)}
                           </span>
+
+                          {event.repeat_count > 1 ? (
+                            <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-xs text-cyan-200">
+                              repeated ×{event.repeat_count}
+                            </span>
+                          ) : null}
                         </div>
 
                         <h3 className="mt-3 font-medium text-zinc-100">
@@ -616,16 +679,38 @@ export default function OperationsPage() {
                         <p className="mt-1 text-sm text-zinc-400">
                           Node: {event.node} · Source: {event.source}
                         </p>
+
+                        {event.repeat_count > 1 ? (
+                          <p className="mt-2 text-xs text-zinc-500">
+                            First seen: {formatTime(event.first_seen)} · Latest:{" "}
+                            {formatTime(event.latest_seen)}
+                          </p>
+                        ) : null}
+
+                        {operationalImpact(event) ? (
+                          <p className="mt-3 rounded-lg border border-zinc-700 bg-zinc-950/70 p-3 text-xs leading-5 text-zinc-300">
+                            {operationalImpact(event)}
+                          </p>
+                        ) : null}
                       </div>
 
                       <p className="shrink-0 text-sm text-zinc-500">
-                        {formatTime(event.timestamp)}
+                        {formatTime(event.latest_seen)}
                       </p>
                     </div>
 
-                    <div className="mt-4">
-                      <EvidenceBlock evidence={event.evidence} />
-                    </div>
+                    <details className="mt-4">
+                      <summary className="cursor-pointer text-xs font-medium text-zinc-400 hover:text-zinc-200">
+                        Latest evidence
+                        {event.repeat_count > 1
+                          ? ` · ${event.repeat_count} matching events compacted`
+                          : ""}
+                      </summary>
+
+                      <div className="mt-3">
+                        <EvidenceBlock evidence={event.evidence} />
+                      </div>
+                    </details>
                   </article>
                 ))
               )}
