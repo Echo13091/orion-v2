@@ -3,12 +3,19 @@ services:
     build: ./server/backend
     container_name: orion-backend
     ports:
-      - "5001:5001"
+      - "${ORION_BACKEND_PORT:-5001}:5001"
     environment:
-      VISION_NODE_URL: http://192.168.7.218:5000
-      VISION_NODE_FALLBACK_URL: http://100.69.25.43:5000
-      VISION_TIMEOUT: "3.0"
+      ORION_ENV: ${ORION_ENV:-local}
+      ORION_VERSION: ${ORION_VERSION:-dev}
+      ORION_CORS_ORIGINS: ${ORION_CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      ORION_CONTROL_TOKEN: ${ORION_CONTROL_TOKEN:-}
+      VISION_NODE_URL: ${VISION_NODE_URL:-http://vision-node.local:5000}
+      VISION_NODE_FALLBACK_URL: ${VISION_NODE_FALLBACK_URL:-}
+      VISION_TIMEOUT: ${VISION_TIMEOUT:-3.0}
       ORION_EVENT_LOG_PATH: /app/memory/orion_events.jsonl
+      SPRINKLER_BASE_URL: ${SPRINKLER_BASE_URL:-http://sprinkler-controller.local:5000}
+      THERMOSTAT_BASE_URL: ${THERMOSTAT_BASE_URL:-http://thermostat-controller.local:5002}
+      SPRINKLER_ZONE_OFFSET: ${SPRINKLER_ZONE_OFFSET:--1}
     volumes:
       - ./server/backend/memory:/app/memory
       - orion_backend_logs:/app/logs
@@ -18,7 +25,9 @@ services:
     build: ./server/frontend
     container_name: orion-frontend
     ports:
-      - "3001:3000"
+      - "${ORION_FRONTEND_PORT:-3001}:3000"
+    environment:
+      NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:5001}
     restart: unless-stopped
     depends_on:
       - backend
@@ -27,7 +36,7 @@ services:
     image: eclipse-mosquitto
     container_name: orion-mqtt
     ports:
-      - "1883:1883"
+      - "${ORION_MQTT_PORT:-1883}:1883"
     volumes:
       - mosquitto_data:/mosquitto/data
       - mosquitto_logs:/mosquitto/log
