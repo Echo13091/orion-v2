@@ -113,7 +113,15 @@ def _record_decision_event(decision: dict[str, Any]) -> None:
     params = decision.get("params") if isinstance(decision.get("params"), dict) else {}
     requires_execution = bool(decision.get("requires_execution"))
 
-    key = f"{source}:{action}:{reason}:{params}"
+    # Use a stable key for countdown-style manual override decisions so
+    # "298s remaining", "296s remaining", etc. do not create separate events.
+    if source == "manual_override":
+        key = f"{source}:{action}:manual_override"
+    elif action == "observe" and "rain_chance" in params:
+        key = f"{source}:{action}:rain_policy:{params.get('rain_chance')}"
+    else:
+        key = f"{source}:{action}:{reason}:{params}"
+
     now_value = time.time()
     last_value = _LAST_DECISION_EVENT_TS_BY_KEY.get(key, 0.0)
 

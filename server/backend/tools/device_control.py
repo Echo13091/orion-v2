@@ -121,6 +121,28 @@ def _safe_json_response(response: requests.Response) -> dict[str, Any]:
         }
 
 
+
+def _is_expected_sprinkler_redirect(
+    *,
+    base_url: str,
+    path: str,
+    response: requests.Response,
+) -> bool:
+    """
+    Some simple Flask-style sprinkler controller routes perform the action and
+    redirect back to the controller index page. For sprinkler /on/... commands,
+    that redirect is treated as an accepted controller acknowledgement.
+    """
+    if base_url.rstrip("/") != SPRINKLER_BASE_URL:
+        return False
+
+    if response.status_code not in {301, 302, 303, 307, 308}:
+        return False
+
+    normalized_path = str(path or "").strip()
+
+    return normalized_path.startswith("/on/")
+
 def _post_json(
     base_url: str,
     path: str,
@@ -149,6 +171,22 @@ def _post_json(
                 "url": url,
                 "payload": payload or {},
                 "response": _safe_json_response(response),
+            }
+
+        if _is_expected_sprinkler_redirect(
+            base_url=base_url,
+            path=path,
+            response=response,
+        ):
+            return {
+                "ok": True,
+                "url": url,
+                "payload": payload or {},
+                "status": response.status_code,
+                "normalized_status": "accepted_redirect",
+                "controller_acknowledged": True,
+                "location": response.headers.get("Location"),
+                "response": response.text[:500],
             }
 
         return {
@@ -225,6 +263,23 @@ def _request_json(
                 "url": url,
                 "payload": payload or {},
                 "response": _safe_json_response(response),
+            }
+
+        if _is_expected_sprinkler_redirect(
+            base_url=base_url,
+            path=path,
+            response=response,
+        ):
+            return {
+                "ok": True,
+                "method": method,
+                "url": url,
+                "payload": payload or {},
+                "status": response.status_code,
+                "normalized_status": "accepted_redirect",
+                "controller_acknowledged": True,
+                "location": response.headers.get("Location"),
+                "response": response.text[:500],
             }
 
         return {
