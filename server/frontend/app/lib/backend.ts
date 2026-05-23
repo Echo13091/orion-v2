@@ -1,20 +1,17 @@
 export function getBackendUrl() {
-  const configured = process.env.NEXT_PUBLIC_BACKEND_URL;
-
-  if (
-    configured &&
-    !configured.includes("localhost") &&
-    !configured.includes("127.0.0.1")
-  ) {
-    return configured.replace(/\/$/, "");
-  }
-
+  /*
+   * Browser-safe default:
+   * Use the Next.js frontend as a same-origin proxy.
+   *
+   * Browser:
+   *   http://<jetson>:3001/orion-api/system
+   *
+   * Frontend container:
+   *   http://backend:5001/v1/system
+   */
   if (typeof window !== "undefined") {
-    const protocol = window.location.protocol || "http:";
-    const hostname = window.location.hostname;
-
-    return `${protocol}//${hostname}:5001`;
+    return "/orion-api";
   }
 
-  return configured?.replace(/\/$/, "") || "http://localhost:5001";
+  return process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "http://localhost:5001";
 }

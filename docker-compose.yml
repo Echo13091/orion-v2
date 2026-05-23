@@ -28,6 +28,7 @@ services:
       - "${ORION_FRONTEND_PORT:-3001}:3000"
     environment:
       NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:5001}
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:5001}
     restart: unless-stopped
     depends_on:
       - backend
