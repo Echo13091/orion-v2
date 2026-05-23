@@ -575,11 +575,12 @@ Orion runs as a Docker Compose stack on the Jetson.
 Current services:
 
 ```txt
-orion-frontend            Next.js dashboard
-orion-backend             Flask API + monitoring loop
-orion-mqtt                Mosquitto MQTT broker
-orion-thermostat-bridge   HVAC state normalization bridge
+orion-frontend   Next.js dashboard
+orion-backend    Flask API, monitoring loop, control routing, vision proxy, and thermostat normalization
+orion-mqtt       Mosquitto MQTT broker
 ```
+
+Thermostat normalization currently runs through the backend/runtime integration layer rather than a separate Docker Compose service.
 
 Start the stack:
 
@@ -606,6 +607,8 @@ Frontend: http://<JETSON-IP>:3001
 Backend:  http://<JETSON-IP>:5001
 MQTT:     <JETSON-IP>:1883
 ```
+
+The included `docker-compose.yml` reflects the author's local Jetson deployment. For another network, update the vision-node, controller, and service URLs to match the target environment before running the stack.
 
 ---
 
