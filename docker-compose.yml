@@ -24,11 +24,12 @@ services:
   frontend:
     build: ./server/frontend
     container_name: orion-frontend
-    ports:
-      - "${ORION_FRONTEND_PORT:-3001}:3000"
+    network_mode: host
     environment:
       NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:5001}
-      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:5001}
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://127.0.0.1:5001}
+      PORT: ${ORION_FRONTEND_PORT:-3001}
+    command: ["npm", "start", "--", "-p", "${ORION_FRONTEND_PORT:-3001}"]
     restart: unless-stopped
     depends_on:
       - backend
