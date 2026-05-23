@@ -1,5 +1,6 @@
 "use client";
 
+import { getBackendUrl } from "../../lib/backend";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -53,8 +54,7 @@ type EventRecord = {
   details?: Record<string, unknown>;
 };
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "";
+const BACKEND_URL = getBackendUrl();
 
 function displayTemp(value?: number | null) {
   if (value === null || value === undefined) return "—";

@@ -1,10 +1,10 @@
 "use client";
 
+import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "";
+const BACKEND_URL = getBackendUrl();
 
 type StatusState = "good" | "bad" | "warn" | "neutral" | "active";
 

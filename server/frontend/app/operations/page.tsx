@@ -1,5 +1,6 @@
 "use client";
 
+import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -77,8 +78,7 @@ type SystemResponse = {
   fault?: unknown;
 };
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+const BACKEND_URL = getBackendUrl();
 
 function formatTime(timestamp: number) {
   if (!timestamp) return "Unknown";

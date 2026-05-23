@@ -1,5 +1,6 @@
 "use client";
 
+import { getBackendUrl } from "./lib/backend";
 import Link from "next/link";
 import {
   useCallback,
@@ -23,8 +24,7 @@ type Session = {
   title: string;
 };
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "";
+const BACKEND_URL = getBackendUrl();
 
 const SYSTEM_POLL_MS = Number(process.env.NEXT_PUBLIC_SYSTEM_POLL_MS ?? "3000");
 

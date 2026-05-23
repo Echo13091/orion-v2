@@ -1,5 +1,6 @@
 "use client";
 
+import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -27,8 +28,7 @@ type Thermostat = {
   fault_message?: string;
 };
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "";
+const BACKEND_URL = getBackendUrl();
 
 function displayTemp(value?: number | null) {
   if (value === null || value === undefined) return "—";
