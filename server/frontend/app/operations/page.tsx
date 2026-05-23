@@ -33,6 +33,33 @@ type EventsResponse = {
   events: OrionEvent[];
 };
 
+type FaultSummary = {
+  key: string;
+  subsystem: string;
+  node: string;
+  status: "active" | "recovered" | string;
+  severity: "info" | "warning" | "critical" | string;
+  event_type: string;
+  message: string;
+  source: string;
+  first_seen: number;
+  last_seen: number;
+  repeat_count: number;
+  latest_event_id?: string;
+  recovered_at?: number | null;
+  recovery_event_id?: string | null;
+  impact?: string;
+  evidence?: Record<string, unknown>;
+};
+
+type FaultsResponse = {
+  ok: boolean;
+  count: number;
+  active_fault_count: number;
+  include_recovered: boolean;
+  faults: FaultSummary[];
+};
+
 type SystemResponse = {
   ok?: boolean;
   sprinkler?: {
@@ -82,6 +109,12 @@ function eventTypeLabel(value: string) {
 }
 
 function operationalImpact(event: OrionEvent) {
+  const explicitImpact = event.evidence?.impact;
+
+  if (typeof explicitImpact === "string" && explicitImpact.trim()) {
+    return `Impact: ${explicitImpact}`;
+  }
+
   if (event.subsystem === "vision" && event.event_type === "node_offline") {
     return "Impact: camera stream, snapshots, lawn condition, and visual rain evidence are unavailable. Orion continues operating with weather, sprinkler, thermostat, and event telemetry.";
   }
@@ -119,6 +152,30 @@ function operationalImpact(event: OrionEvent) {
   }
 
   return "";
+}
+
+function faultSummaryToEvent(fault: FaultSummary): OrionEvent {
+  return {
+    id: fault.latest_event_id || fault.key,
+    timestamp: fault.last_seen,
+    subsystem: fault.subsystem,
+    node: fault.node,
+    severity: fault.severity,
+    event_type: fault.event_type,
+    message: fault.message,
+    source: fault.source,
+    evidence: {
+      ...(fault.evidence || {}),
+      impact: fault.impact,
+      fault_status: fault.status,
+      recovered_at: fault.recovered_at,
+      recovery_event_id: fault.recovery_event_id,
+    },
+    repeat_count: fault.repeat_count,
+    first_seen: fault.first_seen,
+    latest_seen: fault.last_seen,
+    latest_event_id: fault.latest_event_id,
+  };
 }
 
 function compactEventKey(event: OrionEvent) {
@@ -182,6 +239,7 @@ function EvidenceBlock({ evidence }: { evidence?: Record<string, unknown> }) {
 
 export default function OperationsPage() {
   const [data, setData] = useState<EventsResponse | null>(null);
+  const [faultsData, setFaultsData] = useState<FaultsResponse | null>(null);
   const [systemData, setSystemData] = useState<SystemResponse | null>(null);
   const [error, setError] = useState<string>("");
   const [selectedSubsystem, setSelectedSubsystem] = useState<string>("all");
@@ -211,6 +269,25 @@ export default function OperationsPage() {
     }
   }
 
+  async function loadFaults() {
+    try {
+      const response = await fetch(`${BACKEND_URL}/v1/faults`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        setFaultsData(null);
+        return;
+      }
+
+      const payload = (await response.json()) as FaultsResponse;
+      setFaultsData(payload);
+    } catch {
+      // Keep Operations usable by falling back to event-derived faults.
+      setFaultsData(null);
+    }
+  }
+
   async function loadSystemState() {
     try {
       const response = await fetch(`${BACKEND_URL}/v1/system`, {
@@ -230,10 +307,12 @@ export default function OperationsPage() {
 
   useEffect(() => {
     loadEvents();
+    loadFaults();
     loadSystemState();
 
     const timer = window.setInterval(() => {
       loadEvents();
+      loadFaults();
       loadSystemState();
     }, 5000);
 
@@ -298,6 +377,15 @@ export default function OperationsPage() {
   }, [filteredEvents]);
 
   const activeFaults = useMemo(() => {
+    const backendFaults = faultsData?.faults ?? [];
+
+    if (backendFaults.length > 0) {
+      return backendFaults
+        .filter((fault) => fault.status === "active")
+        .map(faultSummaryToEvent)
+        .sort((a, b) => b.timestamp - a.timestamp);
+    }
+
     const faultEvents = events.filter((event) => {
       return (
         event.severity === "warning" ||
@@ -322,7 +410,7 @@ export default function OperationsPage() {
     return Array.from(latestByFaultKey.values()).sort(
       (a, b) => b.timestamp - a.timestamp,
     );
-  }, [events]);
+  }, [events, faultsData]);
 
   const nodeHealth = useMemo(() => {
     const latestByNode = new Map<string, OrionEvent>();
@@ -433,7 +521,7 @@ export default function OperationsPage() {
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
             <p className="text-sm text-zinc-400">Active Faults / Blocks</p>
             <p className="mt-2 text-3xl font-semibold">
-              {activeFaults.length}
+              {faultsData?.active_fault_count ?? activeFaults.length}
             </p>
           </div>
 
