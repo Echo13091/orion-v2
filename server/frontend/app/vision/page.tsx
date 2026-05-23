@@ -1253,8 +1253,14 @@ export default function VisionPage() {
               />
               <Field
                 label="Fault"
-                value={vision?.fault ? vision?.fault_code || "Fault" : "None"}
-                state={vision?.fault ? "bad" : "good"}
+                value={
+                  !visionOnline
+                    ? "Node Unreachable"
+                    : vision?.fault
+                      ? vision?.fault_code || "Fault"
+                      : "None"
+                }
+                state={!visionOnline || vision?.fault ? "bad" : "good"}
               />
             </div>
 
