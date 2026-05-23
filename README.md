@@ -1,10 +1,10 @@
 # Orion V2 — Distributed Edge Automation Platform
 
-Orion V2 is a local-first supervisory automation platform for real HVAC, irrigation, thermostat, weather, and environmental vision systems.
+Orion V2 is a local-first supervisory automation platform for real HVAC, irrigation, thermostat, weather, environmental vision, and distributed edge automation systems.
 
-It runs on NVIDIA Jetson edge hardware with Docker Compose and integrates Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, REST APIs, WebRTC video streaming, deterministic environmental logic, and AI-assisted operational recommendations.
+It runs on NVIDIA Jetson edge hardware with Docker Compose and integrates Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, REST APIs, WebRTC video streaming, deterministic environmental logic, operational event history, and AI-assisted operational recommendations.
 
-Orion is not a simulated dashboard. It supervises real distributed hardware, normalizes telemetry, exposes fault state, and coordinates safe operator-approved actions.
+Orion is not a simulated dashboard. It supervises real distributed hardware, normalizes telemetry, exposes fault state, records command and decision history, tracks state transitions, and coordinates safe operator-approved actions.
 ---
 
 ## At a Glance
@@ -21,6 +21,7 @@ Orion is not a simulated dashboard. It supervises real distributed hardware, nor
 | Vision interpretation | Jetson-side lawn, rain / wet-surface, and low-light analysis |
 | AI layer | Local LLM-assisted monitoring and recommendations |
 | Control model | Deterministic safety logic with operator-approved execution |
+| Operations layer | Event timeline, active faults, audit trail, and state transitions |
 
 ---
 
@@ -34,10 +35,12 @@ Orion is not a simulated dashboard. It supervises real distributed hardware, nor
 - [Dashboard Structure](#dashboard-structure)
 - [Integrated Subsystems](#integrated-subsystems)
 - [AI-Assisted Monitoring](#ai-assisted-monitoring)
+- [Operations Console](#operations-console)
 - [Supervisory Orchestration Focus](#supervisory-orchestration-focus)
 - [Quick Start](#quick-start)
 - [Docker Deployment](#docker-deployment)
 - [API Examples](#api-examples)
+- [Event Model](#event-model)
 - [Technology Stack](#technology-stack)
 - [Field Controller Independence](#field-controller-independence)
 - [Reliability and Safety Design](#reliability-and-safety-design)
@@ -60,7 +63,7 @@ Instead of replacing device-level logic, Orion acts as a supervisory orchestrati
 
 The goal is to demonstrate a complete edge automation platform, not a simple relay dashboard.
 
-Orion is designed around one central idea: real automation systems need more than commands. They need state visibility, fault awareness, safe execution paths, and clear reasoning about why an action should or should not happen.
+Orion is designed around one central idea: real automation systems need more than commands. They need state visibility, fault awareness, safe execution paths, operational history, state transitions, command audit trails, and clear reasoning about why an action should or should not happen.
 
 ---
 
@@ -85,7 +88,13 @@ Orion is designed around one central idea: real automation systems need more tha
 - Sprinkler / irrigation detail page
 - Weather intelligence detail page
 - Supervisory decision center
+- Operations Console
+- Event timeline and operational audit trail
 - Fault-aware monitoring
+- Manual command audit events
+- Automation policy decision events
+- Irrigation state transition history
+- Controller acknowledgement normalization
 - Manual and automatic execution modes
 - Local-first architecture
 
@@ -233,13 +242,14 @@ Orion separates the main command dashboard from detailed subsystem views.
 ```txt
 /
 ├── /decision-center
+├── /operations
 ├── /vision
 ├── /weather
 ├── /sprinkler
 └── /thermostat
 ```
 
-The main dashboard provides a high-level operational overview. Each subsystem page provides deeper engineering visibility.
+The main dashboard provides a high-level operational overview. Each subsystem page provides deeper engineering visibility. The Operations Console provides event history, active faults, command audit records, policy decisions, and state transitions.
 
 ### Main Dashboard
 
@@ -251,6 +261,7 @@ The dashboard shows:
 - current recommendation
 - execution controls
 - subsystem summaries
+- Operations Console entry point
 - assistant interface
 - saved chats
 - raw system snapshot
@@ -266,6 +277,32 @@ The Decision Center shows:
 - manual vs automatic execution mode
 - command result
 - raw decision JSON
+
+Decision Center recommendations are recorded into the Operations event history when they represent meaningful policy decisions, safety decisions, manual override pauses, or recommended actions.
+
+### Operations Console
+
+The Operations Console shows:
+
+- event timeline
+- active faults
+- node health
+- automation policy decisions
+- manual command audit events
+- state transition history
+- execution evidence
+- controller acknowledgements
+
+Example Operations events:
+
+```txt
+Vision node unreachable
+Manual run zone 6 for 1 minute(s)
+Manual sprinkler stop
+irrigation transitioned from idle to manual_zone_running
+irrigation transitioned from manual_zone_running to idle
+Rain likely (100%). Next irrigation run is already skipped; no sprinkler output is active.
+```
 
 ### Vision Node
 
@@ -360,6 +397,15 @@ The irrigation controller provides:
 
 The sprinkler detail page displays zone timelines, relay activity, schedule state, controller status, and weather-aware recommendations.
 
+The Operations Console records irrigation command audit events and state transitions, for example:
+
+```txt
+Manual run zone 6 for 1 minute(s)
+irrigation transitioned from idle to manual_zone_running
+Manual sprinkler stop
+irrigation transitioned from manual_zone_running to idle
+```
+
 ### Environmental Vision Node
 
 The Vision subsystem provides:
@@ -375,6 +421,8 @@ The Vision subsystem provides:
 - Jetson-side lawn condition interpretation
 - Jetson-side rain / wet-surface evidence evaluation
 - low-light handling so unreliable visual readings are not treated as valid lawn data
+
+When the vision node is unreachable, Orion records a structured `node_offline` event into the Operations Console.
 
 ### Environmental Decision Engine
 
@@ -524,6 +572,15 @@ MQTT:     <JETSON-IP>:1883
 GET /v1/system
 ```
 
+### Operations
+
+```txt
+GET /v1/events
+GET /v1/events?subsystem=irrigation
+GET /v1/events?severity=warning
+GET /v1/events?event_type=state_transition
+```
+
 ### Vision
 
 ```txt
@@ -552,11 +609,17 @@ GET  /v1/thermostats/events
 POST /v1/control/sprinkler/zone
 POST /v1/control/sprinkler/stop
 POST /v1/control/sprinkler/program-now
+POST /v1/control/sprinkler/skip
+POST /v1/control/sprinkler/clear-skip
+GET  /v1/control/sprinkler/schedule
+POST /v1/control/sprinkler/schedule
 POST /v1/control/thermostat/setpoint
 POST /v1/control/thermostat/mode
 POST /v1/control/thermostat/fan
+GET  /v1/control/ai/recommendation
 POST /v1/control/ai/mode
 POST /v1/control/ai/execute
+POST /v1/control/ai/apply
 ```
 
 ### Assistant / Sessions
@@ -565,6 +628,53 @@ POST /v1/control/ai/execute
 GET  /v1/sessions
 GET  /v1/session/{id}
 POST /v1/chat/stream
+```
+
+---
+
+## Event Model
+
+Operations events are stored as structured JSON objects.
+
+Example:
+
+```json
+{
+  "id": "evt_example",
+  "timestamp": 1779495873.735326,
+  "subsystem": "irrigation",
+  "node": "sprinkler-controller",
+  "severity": "info",
+  "event_type": "manual_zone_start",
+  "message": "Manual run zone 6 for 1 minute(s)",
+  "source": "manual_control",
+  "evidence": {
+    "zone": 6,
+    "minutes": 1,
+    "command": "start_zone",
+    "result": {
+      "ok": true,
+      "normalized_status": "accepted_redirect",
+      "controller_acknowledged": true
+    }
+  }
+}
+```
+
+State transition example:
+
+```json
+{
+  "event_type": "state_transition",
+  "message": "irrigation transitioned from idle to manual_zone_running",
+  "evidence": {
+    "from_state": "idle",
+    "to_state": "manual_zone_running",
+    "reason": "Manual run zone 6 for 1 minute(s)",
+    "zone": 6,
+    "minutes": 1
+  }
+}
 ```
 
 ---
@@ -612,6 +722,7 @@ POST /v1/chat/stream
 - TypeScript
 - WebRTC viewer
 - subsystem detail pages
+- Operations Console
 - live polling
 - assistant interface
 
@@ -626,6 +737,9 @@ POST /v1/chat/stream
 - vision proxy routes
 - thermostat normalization
 - environmental decision engine
+- operations event store
+- state transition logging
+- command audit logging
 
 ### Infrastructure
 
@@ -653,6 +767,7 @@ POST /v1/chat/stream
 - AI-assisted explanations
 - structured recommendations
 - manual / automatic execution modes
+- decision audit events
 
 ---
 
@@ -678,6 +793,9 @@ Key reliability concepts include:
 - systemd-managed field services
 - runtime state persistence
 - fault visibility
+- operations event history
+- command audit trail
+- state transition history
 - stale telemetry detection
 - camera-node reachability checks
 - visual condition telemetry
@@ -689,6 +807,7 @@ Key reliability concepts include:
 - manual override capability
 - safe stop commands
 - weather-aware irrigation protection
+- expected controller acknowledgement normalization
 
 Important safety goals include:
 
@@ -701,6 +820,7 @@ Important safety goals include:
 - provide manual override behavior
 - avoid unsafe automation when device state is unknown
 - avoid treating low-light visual analysis as reliable lawn data
+- preserve execution evidence for hardware commands
 
 Orion is an educational engineering project and is not a certified commercial control system.
 
@@ -752,8 +872,12 @@ WEATHER_LOCATION=Brandon,FL
 MQTT_HOST=localhost
 MQTT_PORT=1883
 VISION_NODE_URL=http://192.168.7.218:5000
+VISION_NODE_FALLBACK_URL=http://100.69.25.43:5000
 VISION_TIMEOUT=5.0
 ORION_THERMOSTAT_SYNC_INTERVAL_SECONDS=10
+ORION_EVENT_LOG_PATH=/tmp/orion_events.jsonl
+SPRINKLER_BASE_URL=http://192.168.7.232:5000
+SPRINKLER_ZONE_OFFSET=-1
 ```
 
 Actual values may vary depending on local, Docker, Jetson, or field-controller deployment.
@@ -777,6 +901,7 @@ server/
     └── app/
         ├── page.tsx
         ├── decision-center/
+        ├── operations/
         ├── sprinkler/
         ├── thermostat/
         ├── thermostats/
@@ -841,11 +966,24 @@ Working features:
 - containerized frontend, backend, MQTT broker, and thermostat bridge
 - clean main operations dashboard
 - dedicated subsystem detail pages
+- Operations Console
+- `/v1/events` event API
+- structured event timeline
+- active fault visibility
+- active fault deduplication
+- node health view
+- manual command audit events
+- automation policy decision events
+- irrigation state transition history
+- controller acknowledgement normalization
 - assistant interface
 - saved chat/session support
 - live system metrics
 - AI-assisted recommendation display
 - environmental decision engine
+- operations event store
+- state transition logging
+- command audit logging
 - manual and automatic execution mode display
 - HVAC integration support
 - thermostat state normalization
@@ -870,10 +1008,8 @@ Working features:
 Planned improvements:
 
 - unified device registry
-- shared event timeline
-- command acknowledgment tracking
-- fault history timeline
-- improved AI decision audit trail
+- persistent event storage volume
+- fault correlation across subsystems
 - controller heartbeat dashboard
 - improved lawn-region targeting and calibration
 - watering restriction awareness
@@ -924,6 +1060,10 @@ Orion V2 demonstrates:
 - relay control
 - persistent state
 - fault handling
+- event timeline
+- command audit trail
+- state transition history
+- operations console
 - safety-aware decision logic
 - local edge deployment
 - supervisory orchestration
