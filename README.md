@@ -624,6 +624,7 @@ GET /v1/system
 
 ```txt
 GET /v1/events
+GET /v1/events?compact=true
 GET /v1/events?subsystem=irrigation
 GET /v1/events?severity=warning
 GET /v1/events?event_type=state_transition

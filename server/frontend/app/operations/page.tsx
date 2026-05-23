@@ -13,13 +13,17 @@ type OrionEvent = {
   message: string;
   source: string;
   evidence?: Record<string, unknown>;
+  repeat_count?: number;
+  first_seen?: number;
+  latest_seen?: number;
+  latest_event_id?: string;
 };
 
 type CompactEvent = OrionEvent & {
   repeat_count: number;
   first_seen: number;
   latest_seen: number;
-  repeated_events: OrionEvent[];
+  repeated_events?: OrionEvent[];
 };
 
 type EventsResponse = {
@@ -149,6 +153,7 @@ function compactEvents(events: OrionEvent[]): CompactEvent[] {
     existing.repeat_count += 1;
     existing.first_seen = Math.min(existing.first_seen, event.timestamp);
     existing.latest_seen = Math.max(existing.latest_seen, event.timestamp);
+    existing.repeated_events = existing.repeated_events ?? [];
     existing.repeated_events.push(event);
 
     if (event.timestamp >= existing.timestamp) {
@@ -188,7 +193,7 @@ export default function OperationsPage() {
     try {
       setError("");
 
-      const response = await fetch(`${BACKEND_URL}/v1/events?limit=100`, {
+      const response = await fetch(`${BACKEND_URL}/v1/events?limit=100&compact=true`, {
         cache: "no-store",
       });
 
