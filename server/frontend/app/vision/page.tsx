@@ -944,8 +944,9 @@ export default function VisionPage() {
     await loadVision();
   }
 
-  const streamButtonLabel =
-    streamState === "connected"
+  const streamButtonLabel = !visionOnline
+    ? "Vision Offline"
+    : streamState === "connected"
       ? "Connected"
       : streamState === "connecting"
         ? "Connecting..."
@@ -953,12 +954,25 @@ export default function VisionPage() {
           ? "Reconnect"
           : "Connect";
 
-  const cameraRainDetected =
-    (environment?.inputs?.visual_evidence_detected || environment?.inputs?.camera_rain_detected || environment?.inputs?.visual_wet_surface_evidence) || rainDetection?.rain_detected;
+  const visionAnalysisAvailable =
+    visionOnline &&
+    rainDetection?.ok !== false &&
+    environment?.inputs?.visual_evidence_detected !== undefined;
 
-  const rainEvidenceLabel = cameraRainDetected
-    ? "Wet Surface"
-    : "Clear / Dry";
+  const cameraRainDetected =
+    visionAnalysisAvailable &&
+    Boolean(
+      environment?.inputs?.visual_evidence_detected ||
+        environment?.inputs?.camera_rain_detected ||
+        environment?.inputs?.visual_wet_surface_evidence ||
+        rainDetection?.rain_detected,
+    );
+
+  const rainEvidenceLabel = !visionAnalysisAvailable
+    ? "Unavailable"
+    : cameraRainDetected
+      ? "Wet Surface"
+      : "Clear / Dry";
 
   return (
     <main className="min-h-screen bg-black px-6 py-8 text-white">
@@ -1013,8 +1027,8 @@ export default function VisionPage() {
           <StatCard
             label="Visual Condition"
             value={rainEvidenceLabel}
-            state={cameraRainDetected ? "warn" : "neutral"}
-            sub="Camera evidence"
+            state={!visionAnalysisAvailable ? "neutral" : cameraRainDetected ? "warn" : "neutral"}
+            sub={visionAnalysisAvailable ? "Camera evidence" : "Camera unavailable"}
           />
         </div>
 
@@ -1112,7 +1126,7 @@ export default function VisionPage() {
               disabled={!visionOnline}
               variant="secondary"
             >
-              Snapshot
+              {visionOnline ? "Snapshot" : "Snapshot Unavailable"}
             </Button>
           </div>
 
@@ -1231,10 +1245,10 @@ export default function VisionPage() {
                 Refresh
               </Button>
               <Button onClick={autofocusOnce} disabled={!visionOnline} variant="secondary">
-                Autofocus
+                {visionOnline ? "Autofocus" : "Focus Unavailable"}
               </Button>
               <Button onClick={restartCamera} disabled={!visionOnline} variant="ghost">
-                Restart Camera
+                {visionOnline ? "Restart Camera" : "Restart Unavailable"}
               </Button>
             </div>
           </Section>
@@ -1244,7 +1258,7 @@ export default function VisionPage() {
           <Section
             title="Lawn Condition"
             subtitle="Camera-based grass color and dryness analysis"
-            status={formatMode(grassCondition?.condition || "waiting")}
+            status={visionAnalysisAvailable ? formatMode(grassCondition?.condition || "waiting") : "Unavailable"}
             statusState={lawnState(grassCondition)}
           >
             <div className="grid grid-cols-2 gap-3">
