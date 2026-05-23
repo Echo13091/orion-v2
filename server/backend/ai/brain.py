@@ -71,37 +71,24 @@ def _sprinkler_running(sprinkler: dict[str, Any]) -> bool:
 def _should_log_decision_event(decision: dict[str, Any]) -> bool:
     action = str(decision.get("action") or "observe")
     source = str(decision.get("source") or "rules")
-    reason = str(decision.get("reason") or "").lower()
-    params = decision.get("params") if isinstance(decision.get("params"), dict) else {}
     requires_execution = bool(decision.get("requires_execution"))
 
-    # Always log decisions that may execute, safety decisions, and manual override pauses.
-    if requires_execution or source in {"safety", "manual_override"}:
-        return True
-
-    # Log meaningful policy decisions even when the correct action is observe.
-    # Example: rain likely, but next irrigation run is already skipped.
-    if action == "observe" and source == "rules":
-        if "rain likely" in reason:
-            return True
-
-        if "irrigation" in reason and (
-            "skip" in reason
-            or "delay" in reason
-            or "blocked" in reason
-            or "paused" in reason
-        ):
-            return True
-
-        if "rain_chance" in params and float(params.get("rain_chance") or 0) >= 70:
-            return True
-
-    # Do not log normal heartbeat-style monitoring decisions.
-    if action == "observe" and source == "rules" and not requires_execution:
+    # The API / Decision Center layer records visible observe/policy decisions.
+    # Brain-side logging is reserved for executable, safety, or anomaly decisions
+    # so the Operations Console does not get duplicate passive recommendations.
+    if action == "observe":
         return False
 
-    return True
+    if requires_execution:
+        return True
 
+    if source == "safety":
+        return True
+
+    if action in {"handle_fault", "high_cpu", "high_memory", "stop_sprinkler", "delay_irrigation", "skip_irrigation"}:
+        return True
+
+    return False
 
 def _record_decision_event(decision: dict[str, Any]) -> None:
     if not _should_log_decision_event(decision):
