@@ -19,7 +19,15 @@ type StatusState = "good" | "bad" | "warn" | "neutral" | "active";
 type VisionStatus = {
   ok?: boolean;
   online?: boolean;
+  degraded?: boolean;
+  mode?: string;
+  analysis_available?: boolean;
+  message?: string;
   node_url?: string;
+  vision_node_url?: string;
+  vision_node_fallback_url?: string | null;
+  vision_node_urls?: string[];
+  configured_node_urls?: string[];
   node_id?: string;
   node_name?: string;
   camera_online?: boolean;
@@ -413,7 +421,13 @@ export default function VisionPage() {
   const weather = system?.weather || null;
 
   const visionOnline = Boolean(vision?.online);
-  const visionStatus = !vision ? "Loading" : vision.online ? "Online" : "Offline";
+  const visionStatus = !vision
+    ? "Loading"
+    : vision.online
+      ? "Online"
+      : vision.degraded
+        ? "Degraded"
+        : "Offline";
   const visionState: StatusState = !vision
     ? "neutral"
     : vision.fault
@@ -466,7 +480,7 @@ export default function VisionPage() {
     }
   }, []);
 
-  const loadVision = useCallback(async () => {
+  const loadVision = useCallback(async (): Promise<VisionStatus | null> => {
     try {
       const res = await fetch(`${BACKEND_URL}/v1/vision/status`, {
         cache: "no-store",
@@ -475,22 +489,43 @@ export default function VisionPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setVision({
+        const offlineStatus: VisionStatus = {
           ok: false,
           online: false,
+          degraded: Boolean(data?.degraded ?? true),
+          mode: data?.mode || "vision_degraded",
+          analysis_available: false,
+          message:
+            data?.message ||
+            "Vision node unavailable. Orion is operating in degraded mode.",
           error: data?.error || "Vision node unavailable",
           detail: data?.detail,
-        });
-        return;
+          node_url: data?.node_url,
+          vision_node_url: data?.vision_node_url,
+          vision_node_fallback_url: data?.vision_node_fallback_url,
+          vision_node_urls: data?.vision_node_urls,
+          configured_node_urls: data?.configured_node_urls,
+        };
+
+        setVision(offlineStatus);
+        return offlineStatus;
       }
 
       setVision(data);
+      return data;
     } catch (err) {
-      setVision({
+      const offlineStatus: VisionStatus = {
         ok: false,
         online: false,
+        degraded: true,
+        mode: "vision_degraded",
+        analysis_available: false,
+        message: "Vision node unavailable. Orion is operating in degraded mode.",
         error: err instanceof Error ? err.message : String(err),
-      });
+      };
+
+      setVision(offlineStatus);
+      return offlineStatus;
     }
   }, []);
 
@@ -547,12 +582,41 @@ export default function VisionPage() {
   }, []);
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([
+    const [, visionStatusResult] = await Promise.all([
       loadSystem(),
       loadVision(),
-      loadGrassCondition(),
-      loadRainDetection(),
     ]);
+
+    if (visionStatusResult?.online) {
+      await Promise.all([
+        loadGrassCondition(),
+        loadRainDetection(),
+      ]);
+      return;
+    }
+
+    setGrassCondition((previous) => previous?.ok === false
+      ? previous
+      : {
+          ok: false,
+          condition: "unknown",
+          error: "Vision analysis unavailable",
+          detail:
+            "Vision node is offline. Lawn condition is not being evaluated.",
+        },
+    );
+
+    setRainDetection((previous) => previous?.ok === false
+      ? previous
+      : {
+          ok: false,
+          rain_detected: false,
+          confidence: "unknown",
+          error: "Vision rain detection unavailable",
+          detail:
+            "Vision node is offline. Rain/wet-surface evidence is unavailable.",
+        },
+    );
   }, [loadSystem, loadVision, loadGrassCondition, loadRainDetection]);
 
   const stopRecording = useCallback((save = true) => {
@@ -972,7 +1036,7 @@ export default function VisionPage() {
             </span>
           </div>
 
-          <div className="bg-black">
+          <div className="relative bg-black">
             <video
               ref={videoRef}
               autoPlay
@@ -980,6 +1044,39 @@ export default function VisionPage() {
               muted
               className="aspect-video w-full bg-black object-contain"
             />
+
+            {!visionOnline ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/85 p-6 text-center">
+                <div className="max-w-2xl rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 shadow-lg">
+                  <p className="text-xs uppercase tracking-[0.2em] text-amber-300">
+                    Vision Degraded Mode
+                  </p>
+                  <h3 className="mt-2 text-2xl font-semibold text-white">
+                    Vision node offline
+                  </h3>
+                  <p className="mt-3 text-sm leading-6 text-amber-100/90">
+                    Camera stream, snapshots, lawn analysis, and visual rain
+                    evidence are unavailable. Orion is continuing with weather,
+                    sprinkler, thermostat, and operations telemetry.
+                  </p>
+
+                  <div className="mt-4 grid gap-2 text-left text-xs text-neutral-300">
+                    <p>
+                      <span className="text-neutral-500">Primary:</span>{" "}
+                      {displayValue(vision?.vision_node_url || vision?.node_url)}
+                    </p>
+                    <p>
+                      <span className="text-neutral-500">Fallback:</span>{" "}
+                      {displayValue(vision?.vision_node_fallback_url)}
+                    </p>
+                    <p>
+                      <span className="text-neutral-500">Detail:</span>{" "}
+                      {displayValue(vision?.detail || vision?.error || vision?.message)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-3 border-t border-neutral-800 p-4 md:grid-cols-4">

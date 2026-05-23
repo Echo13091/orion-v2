@@ -24,15 +24,28 @@ _LAST_VISION_RECOVERY_EVENT_TS = 0.0
 _VISION_WAS_OFFLINE = False
 
 
-def _json_error(message: str, status: int = 500, **extra):
+def _vision_degraded_payload(message: str, detail: str = "", **extra) -> dict[str, Any]:
     payload = {
         "ok": False,
+        "online": False,
+        "degraded": True,
+        "mode": "vision_degraded",
+        "analysis_available": False,
         "error": message,
+        "message": message,
+        "detail": detail,
         "vision_node_url": VISION_NODE_URL,
         "vision_node_fallback_url": VISION_NODE_FALLBACK_URL or None,
         "vision_node_urls": VISION_NODE_URLS,
+        "configured_node_urls": VISION_NODE_URLS,
     }
     payload.update(extra)
+    return payload
+
+
+def _json_error(message: str, status: int = 500, **extra):
+    detail = str(extra.pop("detail", "") or "")
+    payload = _vision_degraded_payload(message, detail=detail, **extra)
     return jsonify(payload), status
 
 
@@ -606,11 +619,13 @@ def register_vision(app):
             return _json_error(
                 "Invalid focus mode. Use continuous, auto_once, or manual.",
                 400,
+                degraded=False,
+                analysis_available=False,
             )
 
         try:
-            result = _post_json(
-                f"{active_node_url}/api/camera/focus",
+            result, active_node_url = _try_post_json(
+                "/api/camera/focus",
                 {
                     "mode": mode,
                     "manual_lens_position": lens_position,
@@ -620,20 +635,25 @@ def register_vision(app):
             return jsonify(
                 {
                     "ok": True,
+                    "online": True,
+                    "degraded": False,
+                    "active_node_url": active_node_url,
                     "result": result,
                     "status": get_vision_status(),
                 }
             )
         except urllib.error.URLError as e:
+            _record_vision_offline_event(str(e))
             return _json_error(
-                "Vision focus command failed",
+                "Vision focus command unavailable because the vision node is offline",
                 503,
                 detail=str(e),
             )
         except Exception as e:
+            _record_vision_offline_event(str(e))
             return _json_error(
                 "Failed to send focus command",
-                500,
+                503,
                 detail=str(e),
             )
 
@@ -642,11 +662,16 @@ def register_vision(app):
         data = request.json or {}
 
         if not data.get("sdp") or not data.get("type"):
-            return _json_error("Missing WebRTC offer SDP/type.", 400)
+            return _json_error(
+                "Missing WebRTC offer SDP/type.",
+                400,
+                degraded=False,
+                analysis_available=False,
+            )
 
         try:
-            answer = _post_json(
-                f"{active_node_url}/offer",
+            answer, active_node_url = _try_post_json(
+                "/offer",
                 {
                     "sdp": data.get("sdp"),
                     "type": data.get("type"),
@@ -654,40 +679,53 @@ def register_vision(app):
                 timeout=max(VISION_TIMEOUT, 10.0),
             )
 
+            if isinstance(answer, dict):
+                answer.setdefault("ok", True)
+                answer.setdefault("online", True)
+                answer.setdefault("degraded", False)
+                answer.setdefault("active_node_url", active_node_url)
+
             return jsonify(answer)
         except urllib.error.URLError as e:
+            _record_vision_offline_event(str(e))
             return _json_error(
-                "Vision WebRTC offer failed",
+                "Vision stream unavailable because the vision node is offline",
                 503,
                 detail=str(e),
             )
         except Exception as e:
+            _record_vision_offline_event(str(e))
             return _json_error(
                 "Failed to negotiate vision stream",
-                500,
+                503,
                 detail=str(e),
             )
 
     @app.route("/v1/vision/restart-camera", methods=["POST"])
     def vision_restart_camera():
         try:
-            result = _post_json(f"{active_node_url}/api/camera/restart", {})
+            result, active_node_url = _try_post_json("/api/camera/restart", {})
             return jsonify(
                 {
                     "ok": True,
+                    "online": True,
+                    "degraded": False,
+                    "active_node_url": active_node_url,
                     "result": result,
                     "status": get_vision_status(),
                 }
             )
         except urllib.error.URLError as e:
+            _record_vision_offline_event(str(e))
             return _json_error(
-                "Vision camera restart failed",
+                "Vision camera restart unavailable because the vision node is offline",
                 503,
                 detail=str(e),
             )
         except Exception as e:
+            _record_vision_offline_event(str(e))
             return _json_error(
                 "Failed to restart vision camera",
-                500,
+                503,
                 detail=str(e),
             )
