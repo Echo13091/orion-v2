@@ -22,6 +22,23 @@ type EventsResponse = {
   events: OrionEvent[];
 };
 
+type SystemResponse = {
+  ok?: boolean;
+  sprinkler?: {
+    online?: boolean;
+    running?: boolean;
+    active?: boolean;
+    zone?: number | string | null;
+    active_zone?: number | string | null;
+    mode?: string | null;
+    status?: string | null;
+    next_run?: string | null;
+  };
+  automation_mode?: string;
+  ai_status?: string;
+  fault?: unknown;
+};
+
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
 
@@ -67,6 +84,7 @@ function EvidenceBlock({ evidence }: { evidence?: Record<string, unknown> }) {
 
 export default function OperationsPage() {
   const [data, setData] = useState<EventsResponse | null>(null);
+  const [systemData, setSystemData] = useState<SystemResponse | null>(null);
   const [error, setError] = useState<string>("");
   const [selectedSubsystem, setSelectedSubsystem] = useState<string>("all");
   const [selectedSeverity, setSelectedSeverity] = useState<string>("all");
@@ -93,15 +111,42 @@ export default function OperationsPage() {
     }
   }
 
+  async function loadSystemState() {
+    try {
+      const response = await fetch(`${BACKEND_URL}/v1/system`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as SystemResponse;
+      setSystemData(payload);
+    } catch {
+      // Keep Operations usable even if system snapshot polling fails.
+    }
+  }
+
   useEffect(() => {
     loadEvents();
+    loadSystemState();
 
-    const timer = window.setInterval(loadEvents, 5000);
+    const timer = window.setInterval(() => {
+      loadEvents();
+      loadSystemState();
+    }, 5000);
 
     return () => window.clearInterval(timer);
   }, []);
 
   const events = data?.events ?? [];
+  const sprinkler = systemData?.sprinkler ?? {};
+  const sprinklerRunning = Boolean(
+    sprinkler.running || sprinkler.active || sprinkler.status === "running",
+  );
+  const sprinklerZone = sprinkler.zone ?? sprinkler.active_zone ?? "—";
+  const sprinklerMode = sprinkler.mode ?? (sprinklerRunning ? "manual" : "idle");
 
   const subsystems = useMemo(() => {
     return Array.from(new Set(events.map((event) => event.subsystem))).sort();
@@ -333,6 +378,47 @@ export default function OperationsPage() {
           </div>
 
           <aside className="flex flex-col gap-4">
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+              <h2 className="text-lg font-semibold">Current Runtime State</h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                Live subsystem state from Orion's normalized system snapshot.
+              </p>
+
+              <div className="mt-4 rounded-xl border border-zinc-800 bg-black/20 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-zinc-100">
+                    Irrigation
+                  </p>
+
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-xs ${
+                      sprinklerRunning
+                        ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-200"
+                        : "border-zinc-700 bg-zinc-900 text-zinc-300"
+                    }`}
+                  >
+                    {sprinklerRunning ? "Running" : "Idle"}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-2">
+                    <p className="text-zinc-500">Zone</p>
+                    <p className="mt-1 text-zinc-200">{sprinklerZone}</p>
+                  </div>
+
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-2">
+                    <p className="text-zinc-500">Mode</p>
+                    <p className="mt-1 text-zinc-200">{sprinklerMode}</p>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-xs text-zinc-500">
+                  Automation mode: {systemData?.automation_mode ?? "unknown"}
+                </p>
+              </div>
+            </section>
+
             <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
               <h2 className="text-lg font-semibold">Active Faults</h2>
               <p className="mt-1 text-sm text-zinc-400">
