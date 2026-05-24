@@ -135,9 +135,13 @@ export default function CamerasPage() {
   }, []);
 
   useEffect(() => {
-    loadCameras();
-    const timer = window.setInterval(loadCameras, 5000);
-    return () => window.clearInterval(timer);
+    const initialTimer = window.setTimeout(loadCameras, 0);
+    const intervalTimer = window.setInterval(loadCameras, 5000);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(intervalTimer);
+    };
   }, [loadCameras]);
 
   const devices = Array.isArray(cameras?.devices) ? cameras.devices : [];
