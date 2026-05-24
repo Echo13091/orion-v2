@@ -1,5 +1,7 @@
 # Orion V2 — Distributed Edge Automation Platform
 
+![Orion CI](https://github.com/Echo13091/orion-v2/actions/workflows/ci.yml/badge.svg)
+
 Orion V2 is a local-first supervisory automation platform for real HVAC, irrigation, thermostat, weather, environmental vision, and distributed edge automation systems.
 
 It runs on NVIDIA Jetson edge hardware with Docker Compose and integrates Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, REST APIs, WebRTC video streaming, deterministic environmental logic, operational event history, and AI-assisted operational recommendations.
@@ -47,6 +49,7 @@ Orion is not a simulated dashboard. It supervises real distributed hardware, nor
 - [Reliability and Safety Design](#reliability-and-safety-design)
 - [Running Locally](#running-locally)
 - [Environment Variables](#environment-variables)
+- [Quality Gates](#quality-gates)
 - [Repository Structure](#repository-structure)
 - [Security Notes](#security-notes)
 - [Safety Notes](#safety-notes)
@@ -957,6 +960,23 @@ SPRINKLER_ZONE_OFFSET=-1
 ```
 
 Actual values may vary depending on local, Docker, Jetson, or field-controller deployment.
+
+---
+
+## Quality Gates
+
+Orion includes a basic GitHub Actions workflow for repository health checks.
+
+Current CI checks:
+
+- frontend dependency install
+- frontend lint check
+- frontend production build
+- backend dependency install
+- backend Flask app import smoke check
+- backend route-map smoke check
+
+The backend CI job runs with startup disabled so hardware polling, local LLM warmup, and field-controller integrations are not required for repository validation.
 
 ---
 
