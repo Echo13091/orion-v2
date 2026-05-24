@@ -2,11 +2,29 @@
 
 ![Orion CI](https://github.com/Echo13091/orion-v2/actions/workflows/ci.yml/badge.svg)
 
-Orion V2 is a local-first supervisory automation platform for real HVAC, irrigation, thermostat, weather, environmental vision, and distributed edge automation systems.
+Orion V2 is a local-first supervisory automation platform for real HVAC, irrigation, thermostat, weather, environmental vision, and distributed edge-control systems.
 
-It runs on NVIDIA Jetson edge hardware with Docker Compose and integrates Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, REST APIs, WebRTC video streaming, deterministic environmental logic, operational event history, and AI-assisted operational recommendations.
+It runs on NVIDIA Jetson edge hardware using Docker Compose and integrates Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, Flask APIs, a Next.js operations dashboard, WebRTC video, deterministic safety logic, event history, and AI-assisted operational recommendations.
 
-Orion is not a simulated dashboard. It supervises real distributed hardware, normalizes telemetry, exposes fault state, records command and decision history, tracks state transitions, and coordinates safe operator-approved actions.
+This is not a simulated dashboard. Orion supervises real distributed hardware, normalizes telemetry, exposes degraded subsystem state, records command and decision history, tracks state transitions, and routes hardware actions through safe operator-approved control paths.
+
+---
+
+## Project Summary
+
+Orion demonstrates a full-stack edge automation system built around real equipment behavior instead of mock data. The platform separates field-controller responsibility from supervisory orchestration: local controllers own hardware execution and safety timing, while Orion provides centralized visibility, decision support, fault awareness, event history, and operator control.
+
+Core engineering themes:
+
+- distributed system supervision
+- hardware-adjacent backend APIs
+- real-time telemetry normalization
+- degraded-state handling
+- safety-aware command routing
+- event and fault visibility
+- edge deployment on Linux / NVIDIA Jetson
+- full-stack operational UI design
+
 ---
 
 ## At a Glance
@@ -29,6 +47,7 @@ Orion is not a simulated dashboard. It supervises real distributed hardware, nor
 
 ## Table of Contents
 
+- [Project Summary](#project-summary)
 - [Purpose](#purpose)
 - [Highlights](#highlights)
 - [Screenshots](#screenshots)
@@ -73,37 +92,42 @@ Orion is designed around one central idea: real automation systems need more tha
 
 ## Highlights
 
+### Platform
+
 - NVIDIA Jetson edge deployment
 - Docker Compose orchestration
 - Next.js / React / TypeScript dashboard
 - Python Flask backend API
 - Mosquitto MQTT broker
-- Raspberry Pi HVAC and irrigation field controllers
+- Local-first LAN architecture
+
+### Field Systems
+
+- Raspberry Pi HVAC and irrigation controllers
 - ESP32 relay / telemetry nodes
-- Raspberry Pi Zero 2 W environmental vision node
-- IMX708 camera integration
-- WebRTC environmental camera streaming
-- Browser recording and snapshot controls
-- Jetson-side lawn condition interpretation
-- Jetson-side rain / wet-surface evidence evaluation
-- Low-light / dark-condition handling
-- Weather-aware irrigation decisions
-- Thermostat / HVAC detail page
-- Sprinkler / irrigation detail page
-- Weather intelligence detail page
-- Supervisory decision center
-- Operations Console
+- Thermostat state normalization
+- Sprinkler scheduling, manual control, and weather-aware skip logic
+- Environmental vision node with IMX708 camera and WebRTC streaming
+
+### Operations and Reliability
+
+- Operations Console for events, faults, node health, and command evidence
 - Degraded subsystem visibility
-- Compacted repeated event timeline
-- Operational impact messages for faults and offline nodes
-- Event timeline and operational audit trail
-- Fault-aware monitoring
+- Compacted repeated-event timeline
 - Manual command audit events
 - Automation policy decision events
 - Irrigation state transition history
 - Controller acknowledgement normalization
-- Manual and automatic execution modes
-- Local-first architecture
+- Optional hardware-control token gate
+- Single-process threaded backend deployment for predictable local runtime state
+
+### Decision Support
+
+- Environmental decision engine
+- Rain / wet-surface evidence handling
+- Low-light visual-analysis safeguards
+- Local LLM-assisted monitoring and recommendations
+- Manual and automatic execution modes with deterministic safety checks
 
 ---
 
