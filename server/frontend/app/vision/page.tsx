@@ -473,7 +473,7 @@ export default function VisionPage() {
 
   const loadSystem = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/system`, {
+      const res = await fetch(`${BACKEND_URL}/v1/system/decision`, {
         cache: "no-store",
       });
 

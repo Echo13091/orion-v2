@@ -290,7 +290,7 @@ export default function OperationsPage() {
 
   async function loadSystemState() {
     try {
-      const response = await fetch(`${BACKEND_URL}/v1/system`, {
+      const response = await fetch(`${BACKEND_URL}/v1/system/decision`, {
         cache: "no-store",
       });
 
