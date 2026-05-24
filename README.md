@@ -582,6 +582,10 @@ orion-mqtt       Mosquitto MQTT broker
 
 Thermostat normalization currently runs through the backend/runtime integration layer rather than a separate Docker Compose service.
 
+### Runtime State Note
+
+The backend is intentionally deployed as a single Gunicorn worker because Orion's live runtime state, background monitoring loop, and in-memory device snapshot are process-local. This keeps local edge behavior predictable for the current Jetson deployment. Future production hardening should move runtime state to a persistent shared store such as SQLite before increasing backend worker count.
+
 Start the stack:
 
 ```bash

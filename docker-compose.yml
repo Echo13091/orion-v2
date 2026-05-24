@@ -1,5 +1,6 @@
 services:
   backend:
+    image: orionv2-backend
     build: ./server/backend
     container_name: orion-backend
     ports:
