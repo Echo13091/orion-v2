@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "../lib/api";
 import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
 import {
@@ -473,7 +474,7 @@ export default function VisionPage() {
 
   const loadSystem = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/system/decision`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/system/decision`, {
         cache: "no-store",
       });
 
@@ -497,7 +498,7 @@ export default function VisionPage() {
 
   const loadVision = useCallback(async (): Promise<VisionStatus | null> => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/vision/status`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/vision/status`, {
         cache: "no-store",
       });
 
@@ -546,7 +547,7 @@ export default function VisionPage() {
 
   const loadGrassCondition = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/vision/grass-condition`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/vision/grass-condition`, {
         cache: "no-store",
       });
 
@@ -572,7 +573,7 @@ export default function VisionPage() {
 
   const loadRainDetection = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/vision/rain-detection`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/vision/rain-detection`, {
         cache: "no-store",
       });
 
@@ -867,7 +868,7 @@ export default function VisionPage() {
         throw new Error("Failed to create local WebRTC offer.");
       }
 
-      const res = await fetch(`${BACKEND_URL}/v1/vision/offer`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/vision/offer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -937,7 +938,7 @@ export default function VisionPage() {
   }
 
   async function autofocusOnce() {
-    await fetch(`${BACKEND_URL}/v1/vision/focus`, {
+    await apiFetch(`${BACKEND_URL}/v1/vision/focus`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -952,7 +953,7 @@ export default function VisionPage() {
     const confirmed = window.confirm("Restart the vision node camera?");
     if (!confirmed) return;
 
-    await fetch(`${BACKEND_URL}/v1/vision/restart-camera`, {
+    await apiFetch(`${BACKEND_URL}/v1/vision/restart-camera`, {
       method: "POST",
     });
 

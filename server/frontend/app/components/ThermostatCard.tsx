@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "../lib/api";
 import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -56,7 +57,7 @@ export default function ThermostatCard() {
 
   async function loadThermostat() {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/thermostats`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/thermostats`, {
         cache: "no-store",
       });
 

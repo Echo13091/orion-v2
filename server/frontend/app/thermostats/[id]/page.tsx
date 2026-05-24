@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "../../lib/api";
 import { getBackendUrl } from "../../lib/backend";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -147,7 +148,7 @@ export default function ThermostatDetailPage({
 
   async function loadThermostat() {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/thermostats/${thermostatId}`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/thermostats/${thermostatId}`, {
         cache: "no-store",
       });
 
@@ -165,7 +166,7 @@ export default function ThermostatDetailPage({
 
   async function loadEvents() {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/thermostats/events?limit=20`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/thermostats/events?limit=20`, {
         cache: "no-store",
       });
 
@@ -182,7 +183,7 @@ export default function ThermostatDetailPage({
     setCommandStatus("Sending command request...");
 
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${BACKEND_URL}/v1/thermostats/${thermostatId}/setpoint`,
         {
           method: "POST",

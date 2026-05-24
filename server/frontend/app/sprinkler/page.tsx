@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "../lib/api";
 import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -87,7 +88,7 @@ export default function SprinklerPage() {
 
   async function loadSystem() {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/system/decision`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/system/decision`, {
         cache: "no-store",
       });
 

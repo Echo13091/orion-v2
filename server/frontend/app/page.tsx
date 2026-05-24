@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "./lib/api";
 import { getBackendUrl } from "./lib/backend";
 import Link from "next/link";
 import {
@@ -456,7 +457,7 @@ export default function Home() {
 
   const loadSystem = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/system`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/system`, {
         cache: "no-store",
       });
 
@@ -473,7 +474,7 @@ export default function Home() {
 
   const loadVision = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/vision/status`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/vision/status`, {
         cache: "no-store",
       });
 
@@ -498,7 +499,7 @@ export default function Home() {
 
   const loadCameras = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/cameras`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/cameras`, {
         cache: "no-store",
       });
 
@@ -527,7 +528,7 @@ export default function Home() {
 
   const loadSessions = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/sessions`);
+      const res = await apiFetch(`${BACKEND_URL}/v1/sessions`);
       if (!res.ok) return;
 
       const data = await res.json();
@@ -766,7 +767,7 @@ export default function Home() {
     setControlLoading(true);
 
     try {
-      const res = await fetch(`${BACKEND_URL}${path}`, {
+      const res = await apiFetch(`${BACKEND_URL}${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -864,7 +865,7 @@ export default function Home() {
     setSessionId(id);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/session/${id}`);
+      const res = await apiFetch(`${BACKEND_URL}/v1/session/${id}`);
       if (!res.ok) return;
 
       const data = await res.json();
@@ -883,7 +884,7 @@ export default function Home() {
     const title = window.prompt("Rename chat:");
     if (!title?.trim()) return;
 
-    await fetch(`${BACKEND_URL}/v1/session/${id}/rename`, {
+    await apiFetch(`${BACKEND_URL}/v1/session/${id}/rename`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -898,7 +899,7 @@ export default function Home() {
     const confirmed = window.confirm("Delete this chat?");
     if (!confirmed) return;
 
-    await fetch(`${BACKEND_URL}/v1/session/${id}`, {
+    await apiFetch(`${BACKEND_URL}/v1/session/${id}`, {
       method: "DELETE",
     });
 
@@ -946,7 +947,7 @@ export default function Home() {
     setAbortController(controller);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/chat/stream`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1029,7 +1030,7 @@ export default function Home() {
       }
 
       if (returnedSessionId && isNewSession) {
-        const sessionRes = await fetch(
+        const sessionRes = await apiFetch(
           `${BACKEND_URL}/v1/session/${returnedSessionId}`,
         );
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "../lib/api";
 import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -251,7 +252,7 @@ export default function OperationsPage() {
     try {
       setError("");
 
-      const response = await fetch(`${BACKEND_URL}/v1/events?limit=100&compact=true`, {
+      const response = await apiFetch(`${BACKEND_URL}/v1/events?limit=100&compact=true`, {
         cache: "no-store",
       });
 
@@ -271,7 +272,7 @@ export default function OperationsPage() {
 
   async function loadFaults() {
     try {
-      const response = await fetch(`${BACKEND_URL}/v1/faults`, {
+      const response = await apiFetch(`${BACKEND_URL}/v1/faults`, {
         cache: "no-store",
       });
 
@@ -290,7 +291,7 @@ export default function OperationsPage() {
 
   async function loadSystemState() {
     try {
-      const response = await fetch(`${BACKEND_URL}/v1/system/decision`, {
+      const response = await apiFetch(`${BACKEND_URL}/v1/system/decision`, {
         cache: "no-store",
       });
 

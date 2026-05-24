@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "../lib/api";
 import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -118,7 +119,7 @@ export default function CamerasPage() {
 
   const loadCameras = useCallback(async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/v1/cameras`, {
+      const res = await apiFetch(`${BACKEND_URL}/v1/cameras`, {
         cache: "no-store",
       });
 
