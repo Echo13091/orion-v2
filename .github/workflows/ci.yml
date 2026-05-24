@@ -69,3 +69,6 @@ jobs:
 
       - name: Check route map
         run: python -c "from app import app; print(len(list(app.url_map.iter_rules())))"
+
+      - name: Run backend smoke tests
+        run: python -m pytest -q
