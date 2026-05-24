@@ -186,44 +186,26 @@ def register_system(app):
 
     @app.route("/v1/system", methods=["GET"])
     def system():
+        """
+        Full system snapshot.
+
+        Important: this route must not make HTTP calls back into this same
+        backend process. Recursive self-HTTP can deadlock or stall a sync
+        Gunicorn worker and make frontend pages appear unreliable.
+
+        Vision-specific pages should call /v1/vision/* directly. The system
+        snapshot can still include the latest cached/known state plus an
+        environmental recommendation using trusted currently available inputs.
+        """
         state = get_state_snapshot()
 
         weather = state.get("weather") or {}
         sprinkler = state.get("sprinkler") or {}
+
         _record_irrigation_runtime_transition_if_changed(sprinkler)
 
-        grass_condition = None
-        rain_detection = None
-
-        try:
-            import json
-            import urllib.request
-
-            with urllib.request.urlopen(
-                "http://localhost:5001/v1/vision/grass-condition",
-                timeout=2,
-            ) as response:
-                grass_condition = json.loads(
-                    response.read().decode("utf-8")
-                )
-
-        except Exception:
-            grass_condition = None
-
-        try:
-            import json
-            import urllib.request
-
-            with urllib.request.urlopen(
-                "http://localhost:5001/v1/vision/rain-detection",
-                timeout=2,
-            ) as response:
-                rain_detection = json.loads(
-                    response.read().decode("utf-8")
-                )
-
-        except Exception:
-            rain_detection = None
+        grass_condition = state.get("grass_condition")
+        rain_detection = state.get("rain_detection")
 
         state["grass_condition"] = grass_condition
         state["rain_detection"] = rain_detection
