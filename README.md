@@ -584,7 +584,7 @@ Thermostat normalization currently runs through the backend/runtime integration 
 
 ### Runtime State Note
 
-The backend is intentionally deployed as a single Gunicorn worker because Orion's live runtime state, background monitoring loop, and in-memory device snapshot are process-local. This keeps local edge behavior predictable for the current Jetson deployment. Future production hardening should move runtime state to a persistent shared store such as SQLite before increasing backend worker count.
+The backend is intentionally deployed as a single Gunicorn process because Orion's live runtime state, background monitoring loop, and in-memory device snapshot are process-local. Gunicorn threads are used within that single process so slow hardware, vision, or event requests cannot block unrelated health and dashboard routes. Future production hardening should move runtime state to a persistent shared store such as SQLite before increasing backend process count.
 
 Start the stack:
 
