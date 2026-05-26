@@ -3,7 +3,7 @@
 import { apiFetch } from "../lib/api";
 import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const BACKEND_URL = getBackendUrl();
 
@@ -128,7 +128,7 @@ export default function CamerasPage() {
     } catch (err) {
       setCameras({
         error: err instanceof Error ? err.message : String(err),
-        summary: { total: 0, external_cloud: 0, native_streams: 0 },
+        summary: { total: 0, online: 0, degraded: 0, offline: 1 },
         devices: [],
       });
     }
@@ -146,18 +146,31 @@ export default function CamerasPage() {
 
   const devices = Array.isArray(cameras?.devices) ? cameras.devices : [];
   const primary = devices[0] || {};
-  const status = primary?.health ? formatMode(primary.health) : "Unknown";
+
+  const health = primary?.health || "offline";
 
   const statusState: StatusState =
-    primary?.health === "online"
+    health === "online"
       ? "good"
-      : primary?.health === "offline"
+      : health === "offline"
         ? "bad"
         : "warn";
 
+  const cameraReady = Boolean(primary?.camera_ready);
+  const cameraEnabled = Boolean(primary?.camera_enabled);
+  const wifiConnected = primary?.wifi?.status === "connected";
+  const nodeUrl = primary?.node_url;
+  const captureUrl = primary?.capture_url;
+  const streamUrl = primary?.stream_url;
+
+  const streamPreviewUrl = useMemo(() => {
+    if (!streamUrl || !cameraReady) return null;
+    return `${streamUrl}${streamUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  }, [streamUrl, cameraReady, cameras?.last_checked, primary?.last_checked]);
+
   return (
     <main className="min-h-screen bg-black px-6 py-8 text-neutral-100">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <Link
           href="/"
           className="text-sm font-medium text-neutral-500 transition hover:text-neutral-200"
@@ -165,44 +178,44 @@ export default function CamerasPage() {
           ← Back to Orion Dashboard
         </Link>
 
-        <header className="mt-8 flex items-start justify-between gap-4">
+        <header className="mt-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-neutral-600">
-              Orion External Devices
+              Orion Environmental Vision
             </p>
             <h1 className="mt-2 text-4xl font-bold text-white">
-              External Cameras
+              Environmental Vision Node
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-400">
-              Supervised cloud-managed cameras, vendor-app video access, and mixed-vendor device visibility.
+              Local ESP32-S3 camera node for environmental snapshots, visual context, and vision-node health.
             </p>
           </div>
 
-          <Pill label={status} state={statusState} />
+          <Pill label={formatMode(health)} state={statusState} />
         </header>
 
         <section className="mt-8 grid gap-4 md:grid-cols-4">
-          <Field label="Total Cameras" value={displayValue(cameras?.summary?.total, "0")} />
-          <Field label="External Cloud" value={displayValue(cameras?.summary?.external_cloud, "0")} state="warn" />
-          <Field label="Native Streams" value={displayValue(cameras?.summary?.native_streams, "0")} />
-          <Field label="Local Access" value={primary?.local_access ? "Available" : "Not exposed"} state={primary?.local_access ? "good" : "warn"} />
+          <Field label="Node Health" value={formatMode(health)} state={statusState} />
+          <Field label="Wi-Fi" value={wifiConnected ? "Connected" : "Not connected"} state={wifiConnected ? "good" : "bad"} />
+          <Field label="Camera" value={cameraReady ? "Ready" : cameraEnabled ? "Not ready" : "Disabled"} state={cameraReady ? "good" : "warn"} />
+          <Field label="Native Stream" value={primary?.stream_access ? "Available" : "Unavailable"} state={primary?.stream_access ? "active" : "neutral"} />
         </section>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
           <Section
-            title={primary?.name || "No camera configured"}
-            subtitle={`${primary?.vendor || "Unknown vendor"} · ${primary?.model || "Unknown model"}`}
-            right={<Pill label={formatMode(primary?.integration_type || "external_cloud")} state="warn" />}
+            title={primary?.name || "ESP32-S3 Environmental Vision Node"}
+            subtitle={`${primary?.vendor || "ESP32"} · ${primary?.model || "Camera Node"}`}
+            right={<Pill label={formatMode(primary?.integration_type || "local_environmental_vision")} state="active" />}
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="IP Address" value={displayValue(primary?.ip)} />
-              <Field label="MAC Address" value={displayValue(primary?.mac_address)} />
-              <Field label="Managed By" value={displayValue(primary?.managed_by)} state="active" />
+              <Field label="Node URL" value={nodeUrl ? <a className="text-blue-300 hover:text-blue-200" href={nodeUrl} target="_blank">{nodeUrl}</a> : "—"} />
+              <Field label="Wi-Fi IP" value={displayValue(primary?.wifi?.ip)} state={wifiConnected ? "good" : "warn"} />
+              <Field label="Wi-Fi SSID" value={displayValue(primary?.wifi?.ssid)} />
+              <Field label="RSSI" value={primary?.wifi?.rssi !== undefined ? `${primary.wifi.rssi} dBm` : "—"} state={Number(primary?.wifi?.rssi) > -65 ? "good" : "warn"} />
+              <Field label="Setup AP" value={displayValue(primary?.setup_ap?.ssid)} />
+              <Field label="Setup AP IP" value={displayValue(primary?.setup_ap?.ip)} />
+              <Field label="Firmware" value={displayValue(primary?.firmware_version)} />
               <Field label="Location" value={displayValue(primary?.location)} />
-              <Field label="Video Access" value={primary?.stream_access ? "Local Stream" : "Vendor App"} state={primary?.stream_access ? "active" : "neutral"} />
-              <Field label="PTZ Control" value={formatMode(primary?.ptz_control || "vendor_app")} />
-              <Field label="RTSP" value={primary?.capabilities?.rtsp ? "Available" : "Not available"} state={primary?.capabilities?.rtsp ? "good" : "neutral"} />
-              <Field label="ONVIF" value={primary?.capabilities?.onvif ? "Available" : "Not available"} state={primary?.capabilities?.onvif ? "good" : "neutral"} />
             </div>
 
             <div className="mt-5 rounded-2xl border border-neutral-800 bg-black p-4">
@@ -210,34 +223,64 @@ export default function CamerasPage() {
                 Orion Role
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {primary?.orion_role || "Supervised external camera"}
+                {primary?.orion_role || "Environmental vision node"}
               </p>
               <p className="mt-2 text-sm leading-6 text-neutral-400">
-                {primary?.message || primary?.notes || "This camera is tracked as an external vendor-managed device."}
+                {primary?.message || primary?.notes || "Local environmental camera node for Orion visual context."}
               </p>
             </div>
           </Section>
 
           <Section
-            title="Integration Limits"
-            subtitle="Known capability boundaries for this camera"
+            title="Live View"
+            subtitle="Manual stream and snapshot access"
+            right={<Pill label={cameraReady ? "Camera Ready" : "Camera Not Ready"} state={cameraReady ? "good" : "warn"} />}
           >
-            <div className="space-y-3">
-              <Field label="Local HTTP UI" value={primary?.capabilities?.http_ui ? "Available" : "Not available"} />
-              <Field label="Local Stream" value={primary?.capabilities?.local_stream ? "Available" : "Not available"} />
-              <Field label="Motion Alerts" value={primary?.capabilities?.vendor_app_motion_alerts ? "ANRAN App" : "Unknown"} state="active" />
-              <Field label="Playback" value={primary?.capabilities?.vendor_app_playback ? "ANRAN App" : "Unknown"} state="active" />
+            <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-black">
+              {streamPreviewUrl ? (
+                <img
+                  src={streamPreviewUrl}
+                  alt="ESP32-S3 environmental vision stream"
+                  className="aspect-video w-full object-contain"
+                />
+              ) : (
+                <div className="flex aspect-video items-center justify-center p-6 text-center text-sm text-neutral-500">
+                  Stream unavailable. Check camera readiness and node connectivity.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {captureUrl ? (
+                <a
+                  href={captureUrl}
+                  target="_blank"
+                  className="rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-500"
+                >
+                  Open Snapshot
+                </a>
+              ) : null}
+
+              {streamUrl ? (
+                <a
+                  href={streamUrl}
+                  target="_blank"
+                  className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-center text-sm font-semibold text-neutral-100 transition hover:bg-neutral-800"
+                >
+                  Open Stream
+                </a>
+              ) : null}
             </div>
 
             <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-              This camera is intentionally shown as an external cloud device. Orion supervises its metadata and integration status, while live video, PTZ, motion events, and playback remain inside the ANRAN app.
+              Orion should use snapshots for automation evidence. The MJPEG stream is intended for manual inspection, not low-latency FPV.
             </div>
           </Section>
         </div>
 
         <details className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
           <summary className="cursor-pointer text-sm font-semibold text-neutral-300">
-            Raw camera JSON
+            Raw environmental vision JSON
           </summary>
           <pre className="mt-4 max-h-[420px] overflow-auto rounded-xl bg-black p-4 text-xs text-neutral-300">
             {JSON.stringify(cameras, null, 2)}
