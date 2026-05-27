@@ -70,7 +70,17 @@ def _load_latest_metadata() -> Optional[Dict[str, Any]]:
     try:
         if not LATEST_METADATA.exists():
             return None
-        return json.loads(LATEST_METADATA.read_text())
+
+        previous = json.loads(LATEST_METADATA.read_text())
+
+        return {
+            "ok": previous.get("ok"),
+            "checked_at": previous.get("checked_at"),
+            "captured_at": previous.get("captured_at"),
+            "snapshot_available": previous.get("snapshot_available"),
+            "snapshot_size_bytes": previous.get("snapshot_size_bytes"),
+            "usable_for_automation": previous.get("usable_for_automation"),
+        }
     except Exception:
         return None
 
