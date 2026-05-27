@@ -262,6 +262,8 @@ def _compact_decision_state() -> dict:
         "schedule_status": sprinkler.get("schedule_status"),
         "time_valid": sprinkler.get("time_valid"),
         "time_sync_source": sprinkler.get("time_sync_source"),
+        "source": sprinkler.get("source"),
+        "source_url": sprinkler.get("source_url"),
         "raw": sprinkler.get("raw"),
     }
 
