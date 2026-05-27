@@ -3,7 +3,7 @@
 import { apiFetch } from "../lib/api";
 import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const BACKEND_URL = getBackendUrl();
 
@@ -162,11 +162,7 @@ export default function CamerasPage() {
   const nodeUrl = primary?.node_url;
   const captureUrl = primary?.capture_url;
   const streamUrl = primary?.stream_url;
-
-  const streamPreviewUrl = useMemo(() => {
-    if (!streamUrl || !cameraReady) return null;
-    return `${streamUrl}${streamUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
-  }, [streamUrl, cameraReady, cameras?.last_checked, primary?.last_checked]);
+  const snapshotUrl = primary?.capture_url;
 
   return (
     <main className="min-h-screen bg-black px-6 py-8 text-neutral-100">
@@ -232,28 +228,27 @@ export default function CamerasPage() {
           </Section>
 
           <Section
-            title="Live View"
-            subtitle="Manual stream and snapshot access"
+            title="Environmental Snapshot"
+            subtitle="Snapshot preview with manual stream access"
             right={<Pill label={cameraReady ? "Camera Ready" : "Camera Not Ready"} state={cameraReady ? "good" : "warn"} />}
           >
-            <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              {streamPreviewUrl ? (
-                <img
-                  src={streamPreviewUrl}
-                  alt="ESP32-S3 environmental vision stream"
-                  className="aspect-video w-full object-contain"
-                />
-              ) : (
-                <div className="flex aspect-video items-center justify-center p-6 text-center text-sm text-neutral-500">
-                  Stream unavailable. Check camera readiness and node connectivity.
-                </div>
-              )}
+            <div className="rounded-2xl border border-neutral-800 bg-black p-5">
+              <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                Environmental Evidence Mode
+              </p>
+              <p className="mt-3 text-sm leading-6 text-neutral-300">
+                Orion uses this ESP32-S3 as a secondary environmental observer. The dashboard does not keep a live camera connection open, so the node remains stable.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <Field label="Camera Ready" value={cameraReady ? "Yes" : "No"} state={cameraReady ? "good" : "warn"} />
+                <Field label="Evidence Source" value="Snapshot capture" state="active" />
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {captureUrl ? (
+              {snapshotUrl ? (
                 <a
-                  href={captureUrl}
+                  href={snapshotUrl}
                   target="_blank"
                   className="rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-500"
                 >
