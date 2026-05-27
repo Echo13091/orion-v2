@@ -4,7 +4,7 @@ import requests
 from flask import jsonify, request
 
 from core.event_store import record_state_transition
-from core.state import get_state_snapshot, update_state
+from core.state import get_state_snapshot, replace_device_state, update_state
 from tools.environment import evaluate_environment
 
 
@@ -44,7 +44,7 @@ def _as_positive_zone(value):
 
 
 def _fetch_standalone_irrigation_status() -> dict | None:
-    """Read the new ESP32 standalone irrigation controller, when configured."""
+    """Read the ESP32 standalone irrigation controller, when configured."""
     if not STANDALONE_IRRIGATION_BASE_URL:
         return None
 
@@ -164,6 +164,15 @@ def _sprinkler_with_live_standalone(cached: dict) -> dict:
     return _normalize_standalone_irrigation(raw)
 
 
+def _persist_live_sprinkler_state(sprinkler: dict) -> None:
+    """Keep global fault logic aligned with the currently reachable controller."""
+    try:
+        if sprinkler.get("controller_type") == "standalone_esp32_irrigation":
+            replace_device_state("sprinkler", sprinkler)
+    except Exception as exc:
+        print(f"[SYSTEM] Failed to persist live sprinkler state: {exc}")
+
+
 def _sprinkler_runtime_state(sprinkler: dict) -> tuple[str, object]:
     running = (
         _runtime_bool(sprinkler.get("running"))
@@ -225,6 +234,10 @@ def _compact_decision_state() -> dict:
 
     weather = state.get("weather") or {}
     sprinkler = _sprinkler_with_live_standalone(state.get("sprinkler") or {})
+    _persist_live_sprinkler_state(sprinkler)
+
+    # Re-read after persistence so top-level fault/mode reflect the live controller.
+    state = get_state_snapshot()
     thermostat = state.get("thermostat") or {}
     irrigation_schedule = state.get("irrigation_schedule") or {}
     irrigation_runtime = state.get("irrigation_runtime") or {}
@@ -352,6 +365,8 @@ def register_system(app):
 
         weather = state.get("weather") or {}
         sprinkler = _sprinkler_with_live_standalone(state.get("sprinkler") or {})
+        _persist_live_sprinkler_state(sprinkler)
+        state = get_state_snapshot()
         state["sprinkler"] = sprinkler
 
         _record_irrigation_runtime_transition_if_changed(sprinkler)
