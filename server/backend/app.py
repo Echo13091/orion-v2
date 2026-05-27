@@ -6,6 +6,7 @@ from flask_cors import CORS
 
 from routes.thermostat_routes import thermostat_bp
 from routes.cameras import cameras_bp
+from routes.vision_evidence import vision_evidence_bp
 from routes.events import events_bp
 
 from api.chat import register_chat
@@ -140,6 +141,7 @@ def version():
 # =====================================================
 app.register_blueprint(thermostat_bp)
 app.register_blueprint(cameras_bp)
+app.register_blueprint(vision_evidence_bp)
 app.register_blueprint(events_bp)
 
 
