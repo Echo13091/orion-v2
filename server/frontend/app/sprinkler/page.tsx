@@ -3,7 +3,7 @@
 import { apiFetch } from "../lib/api";
 import { getBackendUrl } from "../lib/backend";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const BACKEND_URL = getBackendUrl();
 
@@ -21,12 +21,6 @@ function value(v: any, fallback = "—") {
   return String(v);
 }
 
-function tempStatusColor(ok: boolean) {
-  return ok
-    ? "bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30"
-    : "bg-red-500/10 text-red-300 ring-1 ring-red-500/30";
-}
-
 function formatJson(v: any) {
   try {
     return JSON.stringify(v ?? {}, null, 2);
@@ -35,12 +29,65 @@ function formatJson(v: any) {
   }
 }
 
+function formatZone(value: any) {
+  const zone = Number(value);
+  return Number.isFinite(zone) && zone >= 1 ? String(zone) : "—";
+}
 
-function formatSprinklerRecommendation(value?: string | null) {
-  if (!value) return "No recommendation";
+function formatSeconds(value: any) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "—";
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}m ${rest}s`;
+}
 
-  const normalized = String(value).trim().toLowerCase();
+function statusClass(state: "good" | "warn" | "bad" | "active" | "neutral") {
+  if (state === "good") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-200";
+  if (state === "warn") return "border-yellow-500/50 bg-yellow-500/10 text-yellow-200";
+  if (state === "bad") return "border-red-500/40 bg-red-500/10 text-red-200";
+  if (state === "active") return "border-blue-500/40 bg-blue-500/10 text-blue-200";
+  return "border-neutral-700 bg-neutral-950 text-neutral-300";
+}
 
+function Field({
+  label,
+  value: fieldValue,
+  state = "neutral",
+}: {
+  label: string;
+  value: any;
+  state?: "good" | "warn" | "bad" | "active" | "neutral";
+}) {
+  return (
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+        {label}
+      </p>
+      <p className={`mt-2 break-words text-lg font-semibold ${state === "neutral" ? "text-white" : statusClass(state).split(" ").at(-1)}`}>
+        {value(fieldValue)}
+      </p>
+    </div>
+  );
+}
+
+function Pill({
+  label,
+  state = "neutral",
+}: {
+  label: string;
+  state?: "good" | "warn" | "bad" | "active" | "neutral";
+}) {
+  return (
+    <span className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(state)}`}>
+      {label}
+    </span>
+  );
+}
+
+function formatSprinklerRecommendation(input?: string | null) {
+  if (!input) return "No recommendation";
+  const normalized = String(input).trim().toLowerCase();
   const labels: Record<string, string> = {
     delay_irrigation: "Delay irrigation",
     skip_irrigation: "Skip irrigation",
@@ -48,38 +95,7 @@ function formatSprinklerRecommendation(value?: string | null) {
     normal: "Normal operation",
     none: "No recommendation",
   };
-
   return labels[normalized] ?? normalized.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function formatYesNo(value: unknown) {
-  if (value === true) return "Yes";
-  if (value === false) return "No";
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "yes", "online", "ok"].includes(normalized)) return "Yes";
-    if (["false", "no", "offline", "fault"].includes(normalized)) return "No";
-  }
-  return String(value ?? "Unknown");
-}
-
-function Field({
-  label,
-  value: fieldValue,
-}: {
-  label: string;
-  value: any;
-}) {
-  return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
-        {label}
-      </p>
-      <p className="mt-2 break-words text-lg font-semibold text-white">
-        {value(fieldValue)}
-      </p>
-    </div>
-  );
 }
 
 export default function SprinklerPage() {
@@ -98,7 +114,7 @@ export default function SprinklerPage() {
       setSystem(data);
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load sprinkler");
+      setError(err instanceof Error ? err.message : "Unable to load irrigation controller");
     }
   }
 
@@ -110,12 +126,19 @@ export default function SprinklerPage() {
 
   const sprinkler = system?.sprinkler || {};
   const raw = sprinkler.raw || sprinkler;
-  const schedule = system?.irrigation_schedule || {};
+  const rain = sprinkler.rain_sensor || raw.rain_sensor || {};
+  const schedule = sprinkler.schedule || raw.schedule || system?.irrigation_schedule || {};
   const environment = system?.environment || {};
+  const wifi = sprinkler.wifi || raw.wifi || {};
 
   const online = sprinkler.online !== false && raw.online !== false;
   const running = Boolean(sprinkler.running || raw.running);
-  const fault = Boolean(sprinkler.fault || raw.fault);
+  const fault = Boolean(sprinkler.fault || raw.fault || raw.fault_latched);
+  const rainWet = Boolean(rain.wet);
+  const rainBlocksSchedule = Boolean(rain.blocks_schedule ?? sprinkler.rain_inhibit);
+  const rainInhibit = Boolean(sprinkler.rain_inhibit || (rainWet && rainBlocksSchedule));
+  const scheduleStatus = sprinkler.schedule_status || schedule.status || sprinkler.next_run || "—";
+  const activeZone = sprinkler.zone ?? sprinkler.active_zone ?? raw.active_zone ?? raw.zone;
 
   const status = !online
     ? "Offline"
@@ -123,35 +146,20 @@ export default function SprinklerPage() {
       ? "Fault"
       : running
         ? "Running"
-        : "Idle";
+        : rainInhibit
+          ? "Rain Inhibit"
+          : "Idle";
 
-  const activeZone =
-    sprinkler.zone ??
-    sprinkler.active_zone ??
-    raw.zone ??
-    raw.active_zone ??
-    raw.current_zone ??
-    null;
+  const statusState = !online || fault
+    ? "bad"
+    : running
+      ? "active"
+      : rainInhibit
+        ? "warn"
+        : "good";
 
-  const nextRun =
-    sprinkler.next_run ??
-    raw.next_run ??
-    schedule.next_run ??
-    "No scheduled run";
-
-  const relayZones = Array.isArray(raw.relay_zones)
-    ? raw.relay_zones
-    : Array.isArray(raw.zones)
-      ? raw.zones
-      : [];
-
-  const activeRelays = relayZones.filter(Boolean).length;
-
-  const timeline = Array.isArray(raw.timeline)
-    ? raw.timeline
-    : Array.isArray(schedule.timeline)
-      ? schedule.timeline
-      : [];
+  const controllerName = sprinkler.display_name || "Standalone Irrigation Controller";
+  const controllerType = sprinkler.controller_type || "standalone_esp32_irrigation";
 
   return (
     <main className="min-h-screen bg-black px-6 py-8 text-white">
@@ -165,29 +173,22 @@ export default function SprinklerPage() {
               ← Back to Orion Dashboard
             </Link>
 
-            <p className="mt-6 text-xs uppercase tracking-[0.25em] text-neutral-500">
-              Orion Sprinkler Node
+            <p className="mt-6 text-xs uppercase tracking-[0.25em] text-cyan-400">
+              Orion Standalone Irrigation Node
             </p>
 
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-white">
-              Irrigation Controller
+              {controllerName}
             </h1>
 
             <p className="mt-2 max-w-3xl text-neutral-400">
-              Dedicated irrigation detail page for controller state, zone timeline,
-              relay feedback, schedule sync, weather-aware recommendations, and
-              fault visibility.
+              Dedicated detail page for the ESP32 standalone irrigation controller,
+              live zone state, local schedule status, rain switch inhibit, Wi-Fi,
+              time sync, and Orion supervisory context.
             </p>
           </div>
 
-          <div
-            className={[
-              "rounded-full px-4 py-2 text-sm font-semibold",
-              tempStatusColor(online && !fault),
-            ].join(" ")}
-          >
-            {status}
-          </div>
+          <Pill label={status} state={statusState as any} />
         </div>
 
         {error ? (
@@ -197,41 +198,46 @@ export default function SprinklerPage() {
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-4">
-          <Field label="Status" value={status} />
-          <Field label="Active Zone" value={running ? activeZone : "None"} />
-          <Field label="Next Run" value={nextRun} />
-          <Field label="Relays Active" value={`${activeRelays} / 8 active`} />
+          <Field label="Controller" value={controllerType.replaceAll("_", " ")} state={online ? "good" : "bad"} />
+          <Field label="Run State" value={status} state={statusState as any} />
+          <Field label="Active Zone" value={running ? formatZone(activeZone) : "—"} state={running ? "active" : "neutral"} />
+          <Field label="Rain Sensor" value={rain.enabled === false ? "Disabled" : rainWet ? "Wet" : "Dry"} state={rainWet ? "warn" : "good"} />
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
           <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
-            <h2 className="text-xl font-semibold">Controller State</h2>
-            <p className="mt-1 text-sm text-neutral-500">
-              Live normalized sprinkler controller telemetry.
-            </p>
-
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <Field label="Online" value={online} />
-              <Field label="Running" value={running} />
-              <Field label="Mode" value={sprinkler.mode || raw.mode} />
-              <Field label="Health" value={sprinkler.health || raw.health} />
-              <Field label="Heartbeat" value={raw.heartbeat || raw.last_heartbeat_msg_age} />
-              <Field label="Controller" value={schedule.controller || "sprinkler"} />
-              <Field label="Next Cycle Skipped" value={schedule.skip_next_run} />
-              <Field label="Rain Forecast Skip" value={schedule.skip_if_rain_likely} />
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">Standalone Controller State</h2>
+                <p className="mt-1 text-sm text-neutral-500">
+                  Live normalized telemetry from the ESP32 controller.
+                </p>
+              </div>
+              <Pill label={online ? "Online" : "Offline"} state={online ? "good" : "bad"} />
             </div>
 
-            {(sprinkler.error || raw.fault_message) && (
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <Field label="Online" value={online} state={online ? "good" : "bad"} />
+              <Field label="Running" value={running} state={running ? "active" : "neutral"} />
+              <Field label="Remaining" value={formatSeconds(sprinkler.remaining_seconds ?? raw.remaining_seconds)} />
+              <Field label="Schedule Status" value={scheduleStatus} state={String(scheduleStatus).includes("rain") ? "warn" : "neutral"} />
+              <Field label="Rain Inhibit" value={rainInhibit} state={rainInhibit ? "warn" : "good"} />
+              <Field label="Rain Raw High" value={rain.raw_high} />
+              <Field label="Time Source" value={sprinkler.time_sync_source || raw.time_sync_source} />
+              <Field label="Wi-Fi" value={wifi.status || "—"} state={wifi.status === "connected" ? "good" : "neutral"} />
+            </div>
+
+            {(sprinkler.fault_message || raw.fault_message || raw.error) && (
               <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-                {sprinkler.error || raw.fault_message}
+                {sprinkler.fault_message || raw.fault_message || raw.error}
               </div>
             )}
           </section>
 
           <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
-            <h2 className="text-xl font-semibold">Weather-Aware Decision</h2>
+            <h2 className="text-xl font-semibold">Orion Supervisory Context</h2>
             <p className="mt-1 text-sm text-neutral-500">
-              Orion environmental recommendation affecting irrigation.
+              Weather and policy context affecting irrigation decisions.
             </p>
 
             <div className="mt-5 grid gap-3">
@@ -248,6 +254,7 @@ export default function SprinklerPage() {
               <Field
                 label="Safety"
                 value={environment.safety?.reason || "Manual approval required"}
+                state={environment.safety?.requires_user_approval ? "warn" : "good"}
               />
             </div>
 
@@ -259,46 +266,29 @@ export default function SprinklerPage() {
         </div>
 
         <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
-          
-          <div className="mb-4 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
-            Next scheduled cycle is currently held because rain probability is high.
-          </div>
-<h2 className="text-xl font-semibold">Upcoming Zone Timeline</h2>
+          <h2 className="text-xl font-semibold">Local Schedule / Hardware Inhibit</h2>
           <p className="mt-1 text-sm text-neutral-500">
-            Preview of the next irrigation cycle. Held cycles remain visible for operator review.
+            The ESP32 controller owns local schedule execution. Orion supervises and displays inhibit state.
           </p>
 
-          {timeline.length === 0 ? (
-            <p className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
-              No timeline available.
-            </p>
-          ) : (
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {timeline.slice(0, 8).map((item: any, index: number) => (
-                <div
-                  key={`${item.zone}-${item.time}-${index}`}
-                  className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
-                >
-                  <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
-                    {item.time || item.start_label || "—"}
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    Zone {value(item.zone, String(index + 1))}
-                  </p>
-                  <p className="mt-1 text-sm text-neutral-400">
-                    {value(item.duration_minutes ?? item.duration)} min
-                    {item.end_label ? ` · ends ${item.end_label}` : ""}
-                  </p>
-                </div>
-              ))}
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <Field label="Enabled" value={schedule.enabled} state={schedule.enabled ? "good" : "neutral"} />
+            <Field label="Start Minute" value={schedule.start_minute} />
+            <Field label="Valid" value={schedule.valid} state={schedule.valid ? "good" : "warn"} />
+            <Field label="Last Run" value={schedule.last_run_utc_epoch || "—"} />
+          </div>
+
+          {rainInhibit ? (
+            <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+              Rain switch is wet. Scheduled watering is currently inhibited by controller hardware policy.
             </div>
-          )}
+          ) : null}
         </section>
 
         <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
           <details>
             <summary className="cursor-pointer text-sm font-semibold text-neutral-300">
-              Raw sprinkler JSON
+              Raw standalone irrigation JSON
             </summary>
             <pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-black p-4 text-xs leading-5 text-neutral-300">
               {formatJson(sprinkler)}
