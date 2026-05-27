@@ -130,6 +130,7 @@ export default function SprinklerPage() {
   const schedule = sprinkler.schedule || raw.schedule || system?.irrigation_schedule || {};
   const environment = system?.environment || {};
   const wifi = sprinkler.wifi || raw.wifi || {};
+  const esp32Url = sprinkler.source_url || raw.source_url || "";
 
   const online = sprinkler.online !== false && raw.online !== false;
   const running = Boolean(sprinkler.running || raw.running);
@@ -188,7 +189,19 @@ export default function SprinklerPage() {
             </p>
           </div>
 
-          <Pill label={status} state={statusState as any} />
+          <div className="flex flex-wrap items-center gap-3">
+            {esp32Url ? (
+              <a
+                href={esp32Url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-xl border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20"
+              >
+                Open ESP32 Web UI ↗
+              </a>
+            ) : null}
+            <Pill label={status} state={statusState as any} />
+          </div>
         </div>
 
         {error ? (
@@ -225,6 +238,7 @@ export default function SprinklerPage() {
               <Field label="Rain Raw High" value={rain.raw_high} />
               <Field label="Time Source" value={sprinkler.time_sync_source || raw.time_sync_source} />
               <Field label="Wi-Fi" value={wifi.status || "—"} state={wifi.status === "connected" ? "good" : "neutral"} />
+              <Field label="ESP32 Web UI" value={esp32Url || "Not configured"} state={esp32Url ? "active" : "neutral"} />
             </div>
 
             {(sprinkler.fault_message || raw.fault_message || raw.error) && (
