@@ -30,7 +30,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <a
           href="/vision-node"
-          className="fixed right-3 top-3 z-50 rounded-full border border-neutral-700 bg-neutral-950/90 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 shadow-lg backdrop-blur transition hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-blue-100"
+          className="fixed bottom-4 right-4 z-50 rounded-full border border-neutral-700 bg-neutral-950/90 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 shadow-lg backdrop-blur transition hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-blue-100"
         >
           Vision Node
         </a>
