@@ -1225,7 +1225,7 @@ export default function Home() {
 
           <Section
             title="Execution Control"
-            subtitle="Hardware actions require operator approval"
+            subtitle="Auto mode can execute bounded safe actions"
             right={<Pill label={automationMode === "auto" ? "Auto" : "Manual"} state={automationMode === "auto" ? "active" : "neutral"} />}
           >
             <div className="grid grid-cols-2 gap-3">
@@ -1296,7 +1296,7 @@ export default function Home() {
                 },
                 {
                   label: "Automation",
-                  value: automationMode === "auto" ? "Monitor Only" : "Manual Approval",
+                  value: automationMode === "auto" ? "Auto Execute" : "Manual",
                   state: automationMode === "auto" ? "active" : "neutral",
                 },
                 {

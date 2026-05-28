@@ -416,9 +416,9 @@ export default function DecisionCenterPage() {
           />
           <Card
             label="Execution Mode"
-            value={automationMode === "auto" ? "Monitor Only" : "Manual Approval"}
+            value={automationMode === "auto" ? "Auto Execute" : "Manual Approval"}
             state={automationMode === "auto" ? "active" : "neutral"}
-            sub="Recommendations require operator approval"
+            sub={automationMode === "auto" ? "Safe actions may execute automatically" : "Recommendations require operator approval"}
           />
           <Card
             label="Faults"
@@ -568,7 +568,7 @@ export default function DecisionCenterPage() {
           <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
             <h2 className="text-xl font-semibold">Execution Control</h2>
             <p className="mt-1 text-sm text-neutral-500">
-              Switch between manual approval and advisory monitoring. Hardware actions still require operator approval.
+              Switch between manual approval and safe auto execution. Auto mode still uses deterministic safety gates.
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
@@ -596,7 +596,7 @@ export default function DecisionCenterPage() {
                     ? "bg-blue-600 text-white"
                     : "border border-neutral-700 bg-neutral-900 text-neutral-100 hover:bg-neutral-800",
                 ].join(" ")}
-              >Monitor Only</button>
+              >Auto Execute</button>
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
@@ -640,8 +640,9 @@ export default function DecisionCenterPage() {
           </div>
 
           <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm leading-6 text-neutral-300">
-            {safety?.reason ||
-              "No safety reason is currently available."}
+            {automationMode === "auto"
+              ? "Auto execute is enabled. Orion may apply bounded safe actions after deterministic safety checks."
+              : safety?.reason || "No safety reason is currently available."}
           </div>
         </section>
 
