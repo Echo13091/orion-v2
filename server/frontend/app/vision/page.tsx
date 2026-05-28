@@ -1145,12 +1145,6 @@ export default function VisionPage() {
             state={!visionAnalysisAvailable ? "neutral" : cameraRainDetected ? "warn" : "neutral"}
             sub={visionAnalysisAvailable ? "Camera evidence" : "Camera unavailable"}
           />
-          <StatCard
-            label="ESP32 Evidence"
-            value={evidenceLabel}
-            state={evidenceState}
-            sub={visionEvidence?.snapshot_available ? "Snapshot available" : "No snapshot yet"}
-          />
         </div>
 
         <section className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
@@ -1276,58 +1270,6 @@ export default function VisionPage() {
             </div>
           ) : null}
         </section>
-
-        <Section
-          title="ESP32 Environmental Evidence"
-          subtitle="Snapshot evidence from the secondary environmental vision node"
-          status={evidenceLabel}
-          statusState={evidenceState}
-        >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field
-              label="Node Health"
-              value={formatMode(visionEvidence?.node_health)}
-              state={visionEvidence?.node_health === "online" ? "good" : "bad"}
-            />
-            <Field
-              label="Camera Ready"
-              value={visionEvidence?.camera_ready ? "Yes" : "No"}
-              state={visionEvidence?.camera_ready ? "good" : "warn"}
-            />
-            <Field
-              label="Snapshot"
-              value={visionEvidence?.snapshot_available ? "Available" : "Unavailable"}
-              state={visionEvidence?.snapshot_available ? "good" : "neutral"}
-            />
-            <Field
-              label="Wi-Fi RSSI"
-              value={Number.isFinite(Number(visionEvidence?.wifi?.rssi)) ? `${visionEvidence?.wifi?.rssi} dBm` : "—"}
-              state={Number(visionEvidence?.wifi?.rssi ?? -100) > -65 ? "good" : "warn"}
-            />
-          </div>
-
-          <div className="mt-4 rounded-xl border border-neutral-800 bg-black p-4 text-sm leading-6 text-neutral-300">
-            {evidenceReady
-              ? "Visual evidence is available from the ESP32 environmental node and can support Orion decisions."
-              : "ESP32 environmental evidence is not currently usable for automation. Orion will continue without visual confirmation."}
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Button onClick={captureEvidenceSnapshot} variant="success">
-              Capture Evidence
-            </Button>
-
-            {visionEvidence?.snapshot_url ? (
-              <a
-                href={`${BACKEND_URL}${visionEvidence.snapshot_url}?t=${Date.now()}`}
-                target="_blank"
-                className="inline-flex items-center justify-center rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-800"
-              >
-                Open Latest Evidence
-              </a>
-            ) : null}
-          </div>
-        </Section>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <Section
