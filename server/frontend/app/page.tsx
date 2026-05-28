@@ -1379,37 +1379,6 @@ export default function Home() {
             />
 
             <SubsystemCard
-              icon="🎥"
-              title="External Cameras"
-              subtitle="Closed vendor cameras, app-managed video, external monitoring, and Orion supervision"
-              href="/cameras"
-              status={cameraStatus === "Unknown" ? "External" : cameraStatus}
-              statusState={cameraState}
-              primary={cameraPrimary}
-              fields={[
-                {
-                  label: "Device",
-                  value: primaryCamera?.name || "No camera configured",
-                  state: cameraDevices.length > 0 ? "good" : "bad",
-                },
-                {
-                  label: "Vendor",
-                  value: primaryCamera?.vendor || "—",
-                },
-                {
-                  label: "Video",
-                  value: primaryCamera?.stream_access ? "Local Stream" : "Vendor App",
-                  state: primaryCamera?.stream_access ? "active" : "neutral",
-                },
-                {
-                  label: "Local Access",
-                  value: primaryCamera?.local_access ? "Available" : "Vendor app only",
-                  state: primaryCamera?.local_access ? "good" : "warn",
-                },
-              ]}
-            />
-
-            <SubsystemCard
               icon="🌦️"
               title="Weather"
               subtitle="Outdoor conditions, forecast context, rain probability, and irrigation impact"
