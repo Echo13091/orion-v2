@@ -1094,7 +1094,7 @@ export default function Home() {
           <div className="flex flex-wrap items-center gap-2">
             <Pill label={aiActive ? "AI Active" : "AI Standby"} state={aiActive ? "good" : "neutral"} />
             <Pill
-              label={automationMode === "auto" ? "Auto execute" : "Manual apply"}
+              label={automationMode === "auto" ? "Auto execute" : "Manual approval"}
               state={automationMode === "auto" ? "active" : "neutral"}
             />
             <Pill
@@ -1199,7 +1199,7 @@ export default function Home() {
                       : "success"
                   }
                 >
-                  {controlLoading ? "Applying..." : recommendation.applyLabel}
+                  {controlLoading ? "Applying..." : recommendation.action === "delay_irrigation" ? "Skip next irrigation" : recommendation.applyLabel}
                 </Button>
               ) : null}
 
@@ -1225,7 +1225,7 @@ export default function Home() {
 
           <Section
             title="Execution Control"
-            subtitle="Manual approval is recommended for hardware actions"
+            subtitle="Hardware actions require operator approval"
             right={<Pill label={automationMode === "auto" ? "Auto" : "Manual"} state={automationMode === "auto" ? "active" : "neutral"} />}
           >
             <div className="grid grid-cols-2 gap-3">
@@ -1296,7 +1296,7 @@ export default function Home() {
                 },
                 {
                   label: "Automation",
-                  value: formatMode(automationMode),
+                  value: automationMode === "auto" ? "Monitor Only" : "Manual Approval",
                   state: automationMode === "auto" ? "active" : "neutral",
                 },
                 {

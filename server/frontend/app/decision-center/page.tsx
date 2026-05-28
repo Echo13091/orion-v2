@@ -241,7 +241,9 @@ export default function DecisionCenterPage() {
         applyLabel:
           envRecommendation === "stop_or_delay_irrigation"
             ? "Review stop/delay"
-            : "Accept recommendation",
+            : envRecommendation === "delay_irrigation"
+              ? "Skip next irrigation"
+              : "Accept recommendation",
       };
     }
 
@@ -252,7 +254,7 @@ export default function DecisionCenterPage() {
         action: "delay_irrigation",
         state: "warn" as StatusState,
         canApply: true,
-        applyLabel: "Accept recommendation",
+        applyLabel: "Skip next irrigation",
       };
     }
 
@@ -286,7 +288,7 @@ export default function DecisionCenterPage() {
     if (blocked) return { label: "Blocked", state: "warn" as StatusState };
     if (executed && ok !== false) return { label: "Executed", state: "good" as StatusState };
     if (ok === false) return { label: "Failed", state: "bad" as StatusState };
-    if (decision?.requires_execution) return { label: "Waiting", state: "neutral" as StatusState };
+    if (decision?.requires_execution) return { label: "Awaiting Approval", state: "warn" as StatusState };
 
     return { label: "Monitoring Only", state: "active" as StatusState };
   }, [decision, result]);
@@ -413,10 +415,10 @@ export default function DecisionCenterPage() {
             sub="Hardware execution state"
           />
           <Card
-            label="Approval Mode"
-            value={automationMode === "auto" ? "Safety Gated" : "Manual"}
+            label="Execution Mode"
+            value={automationMode === "auto" ? "Monitor Only" : "Manual Approval"}
             state={automationMode === "auto" ? "active" : "neutral"}
-            sub="Automated monitoring, gated execution"
+            sub="Recommendations require operator approval"
           />
           <Card
             label="Faults"
@@ -566,7 +568,7 @@ export default function DecisionCenterPage() {
           <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
             <h2 className="text-xl font-semibold">Execution Control</h2>
             <p className="mt-1 text-sm text-neutral-500">
-              Switch between manual approval and automated monitoring mode. Hardware actions remain safety-gated.
+              Switch between manual approval and advisory monitoring. Hardware actions still require operator approval.
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
@@ -594,13 +596,13 @@ export default function DecisionCenterPage() {
                     ? "bg-blue-600 text-white"
                     : "border border-neutral-700 bg-neutral-900 text-neutral-100 hover:bg-neutral-800",
                 ].join(" ")}
-              >Auto Monitor</button>
+              >Monitor Only</button>
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <Field label="System Action" value={formatMode(environment?.recommendation || decision?.action || "monitor")} />
+              <Field label="Proposed Action" value={formatMode(environment?.recommendation || decision?.action || "monitor")} />
               <Field label="Decision Source" value={environment?.recommendation ? "environment rules" : decision?.source || "rules"} />
-              <Field label="Requires Execution" value={decision?.requires_execution} />
+              <Field label="Hardware Command" value={decision?.requires_execution} />
               <Field label="Decision Time" value={formatTime(decision?.time)} />
               <Field label="Rain Chance" value={formatPercent(weather?.rain_chance)} state={Number(weather?.rain_chance ?? 0) >= 70 ? "warn" : "neutral"} />
               <Field label="Irrigation" value={sprinkler?.running ? "Running" : "Idle"} state={sprinkler?.running ? "active" : "neutral"} />
