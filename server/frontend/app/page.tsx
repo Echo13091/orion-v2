@@ -639,17 +639,27 @@ export default function Home() {
     sprinklerRaw?.node_online !== false &&
     sprinklerRaw?.controller_online !== false;
 
+  const rainSensor = sprinkler?.rain_sensor || sprinklerRaw?.rain_sensor || {};
+  const rainWet = Boolean(rainSensor?.wet);
+  const rainInhibit = Boolean(
+    sprinkler?.rain_inhibit || (rainWet && rainSensor?.blocks_schedule),
+  );
+
   const sprinklerStatus = !sprinklerOnline
     ? "Offline"
     : sprinklerRunning
       ? "Running"
-      : "Idle";
+      : rainInhibit
+        ? "Rain Inhibit"
+        : "Idle";
 
   const sprinklerState: StatusState = !sprinklerOnline
     ? "bad"
     : sprinklerRunning
       ? "active"
-      : "good";
+      : rainInhibit
+        ? "warn"
+        : "good";
 
   const activeZone =
     sprinkler?.zone ??
@@ -1100,7 +1110,7 @@ export default function Home() {
             ["/operations", "Operations"],
             ["/vision", "Vision"],
             ["/weather", "Weather"],
-            ["/sprinkler", "Sprinkler"],
+            ["/sprinkler", "Irrigation"],
             ["/thermostat", "Thermostat"],
           ].map(([href, label]) => (
             <Link
@@ -1130,7 +1140,7 @@ export default function Home() {
             label="Irrigation"
             value={sprinklerStatus}
             state={sprinklerState}
-            sub={sprinklerRunning ? `Zone ${displayValue(activeZone)}` : "No active zone"}
+            sub={sprinklerRunning ? `Zone ${displayValue(activeZone)}` : rainInhibit ? "Rain inhibit active" : "No active zone"}
           />
           <MetricCard
             label="Weather"
@@ -1432,12 +1442,18 @@ export default function Home() {
 
             <SubsystemCard
               icon="💧"
-              title="Sprinkler"
-              subtitle="Irrigation controller, schedules, relay feedback, and zone timeline"
+              title="Standalone Irrigation"
+              subtitle="ESP32 standalone irrigation controller, local schedule, rain switch, and hardware inhibit state"
               href="/sprinkler"
               status={sprinklerStatus}
               statusState={sprinklerState}
-              primary={sprinklerRunning ? `Zone ${displayValue(activeZone)}` : "Idle"}
+              primary={
+                sprinklerRunning
+                  ? `Zone ${displayValue(activeZone)}`
+                  : rainInhibit
+                    ? "Rain Inhibit"
+                    : "Idle"
+              }
               fields={[
                 {
                   label: "Online",
@@ -1445,17 +1461,18 @@ export default function Home() {
                   state: sprinklerOnline ? "good" : "bad",
                 },
                 {
-                  label: "Next Run",
-                  value: displayValue(nextRun),
+                  label: "Rain Sensor",
+                  value: rainWet ? "Wet" : "Dry",
+                  state: rainWet ? "warn" : "good",
                 },
                 {
-                  label: "Skip Next",
-                  value: system?.irrigation_schedule?.skip_next_run,
-                  state: system?.irrigation_schedule?.skip_next_run ? "warn" : "neutral",
+                  label: "Schedule",
+                  value: displayValue(sprinkler?.schedule_status || nextRun),
+                  state: rainInhibit ? "warn" : "neutral",
                 },
                 {
                   label: "Controller",
-                  value: system?.irrigation_schedule?.controller || "sprinkler",
+                  value: sprinkler?.display_name || "Standalone ESP32",
                   state: "good",
                 },
               ]}
