@@ -370,7 +370,7 @@ function StatCard({
   state?: StatusState;
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
+    <div className="h-full rounded-2xl border border-neutral-800 bg-neutral-950 p-4 shadow-lg sm:p-5">
       <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
         {label}
       </p>
@@ -392,11 +392,11 @@ function Field({
   state?: StatusState;
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
+    <div className="h-full rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
         {label}
       </p>
-      <p className={`mt-2 break-words text-lg font-semibold ${textStateClass(state)}`}>
+      <p className={`mt-2 break-words text-base font-semibold sm:text-lg ${textStateClass(state)}`}>
         {value}
       </p>
     </div>
@@ -417,8 +417,8 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
-      <div className="mb-5 flex items-start justify-between gap-4">
+    <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 shadow-lg sm:p-5">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <h2 className="text-xl font-semibold text-white">{title}</h2>
           {subtitle ? (
@@ -1080,9 +1080,9 @@ export default function VisionPage() {
       : "Unavailable";
 
   return (
-    <main className="min-h-screen bg-black px-6 py-8 text-white">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <main className="min-h-screen bg-black text-white">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <Link
               href="/"
@@ -1105,12 +1105,12 @@ export default function VisionPage() {
             </p>
           </div>
 
-          <div className={`rounded-full px-4 py-2 text-sm font-semibold ${stateClasses(visionState)}`}>
+          <div className={`self-start rounded-full px-4 py-2 text-sm font-semibold md:self-end ${stateClasses(visionState)}`}>
             {visionStatus}
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard
             label="Decision"
             value={formatMode(environment?.recommendation)}
@@ -1143,8 +1143,8 @@ export default function VisionPage() {
           />
         </div>
 
-        <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
-          <div className="flex items-start justify-between gap-4 border-b border-neutral-800 p-5">
+        <section className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 shadow-lg">
+          <div className="flex flex-col gap-3 border-b border-neutral-800 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:p-5">
             <div>
               <h2 className="text-xl font-semibold">Environmental Camera Feed</h2>
               <p className="mt-1 text-sm text-neutral-500">
@@ -1210,7 +1210,7 @@ export default function VisionPage() {
             ) : null}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 border-t border-neutral-800 p-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 border-t border-neutral-800 p-4 sm:grid-cols-2 lg:grid-cols-4">
             <Button
               onClick={startStream}
               disabled={
@@ -1264,7 +1264,7 @@ export default function VisionPage() {
           status={evidenceLabel}
           statusState={evidenceState}
         >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field
               label="Node Health"
               value={formatMode(visionEvidence?.node_health)}
@@ -1310,14 +1310,14 @@ export default function VisionPage() {
           </div>
         </Section>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <Section
             title="Environmental Decision"
             subtitle="Weather, camera, lawn condition, and irrigation context"
             status={formatMode(environment?.confidence || "unknown")}
             statusState={confidenceState(environment?.confidence)}
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field
                 label="Decision"
                 value={formatMode(environment?.recommendation)}
@@ -1361,7 +1361,7 @@ export default function VisionPage() {
             status={visionStatus}
             statusState={visionState}
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field
                 label="Camera"
                 value={vision?.camera_online ? "Online" : "Offline"}
@@ -1433,14 +1433,14 @@ export default function VisionPage() {
           </Section>
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr]">
           <Section
             title="Lawn Condition"
             subtitle="Camera-based grass color and dryness analysis"
             status={visionAnalysisAvailable ? formatMode(grassCondition?.condition || "waiting") : "Unavailable"}
             statusState={lawnState(grassCondition)}
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field
                 label="Condition"
                 value={lawnConditionLabel(grassCondition)}
@@ -1502,7 +1502,7 @@ export default function VisionPage() {
             status={rainEvidenceLabel}
             statusState={cameraRainDetected ? "warn" : "neutral"}
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field
                 label="Condition"
                 value={rainEvidenceLabel}
@@ -1555,7 +1555,7 @@ export default function VisionPage() {
           status={Number(weather?.rain_chance ?? 0) >= 70 ? "Rain likely" : "Monitoring"}
           statusState={Number(weather?.rain_chance ?? 0) >= 70 ? "warn" : "good"}
         >
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Temperature" value={formatTemp(weather?.temp)} />
             <Field label="Feels Like" value={formatTemp(weather?.feels_like)} />
             <Field
@@ -1567,7 +1567,7 @@ export default function VisionPage() {
           </div>
         </Section>
 
-        <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
+        <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 shadow-lg sm:p-5">
           <details>
             <summary className="cursor-pointer text-sm font-semibold text-neutral-300">
               Raw vision JSON
