@@ -187,7 +187,18 @@ def summarize_irrigation_context(sprinkler: Dict[str, Any]) -> Dict[str, Any]:
     next_irrigation = extract_next_irrigation(sprinkler)
     last_irrigation = extract_last_irrigation(sprinkler)
 
-    rain_sensor = raw.get("rain_sensor") if is_record(raw.get("rain_sensor")) else {}
+    rain_sensor = (
+        sprinkler.get("rain_sensor")
+        if is_record(sprinkler.get("rain_sensor"))
+        else raw.get("rain_sensor")
+        if is_record(raw.get("rain_sensor"))
+        else {}
+    )
+    rain_sensor_available = bool(
+        "wet" in rain_sensor
+        or sprinkler.get("rain_inhibit") is not None
+        or raw.get("rain_inhibit") is not None
+    )
     rain_sensor_wet = bool(rain_sensor.get("wet"))
     rain_inhibit = bool(
         sprinkler.get("rain_inhibit")
@@ -208,6 +219,7 @@ def summarize_irrigation_context(sprinkler: Dict[str, Any]) -> Dict[str, Any]:
         "next_irrigation": next_irrigation,
         "last_irrigation": last_irrigation,
         "fault": fault,
+        "rain_sensor_available": rain_sensor_available,
         "rain_sensor_wet": rain_sensor_wet,
         "rain_inhibit": rain_inhibit,
         "rain_sensor": rain_sensor,
@@ -328,10 +340,8 @@ def build_environment_evidence(
         and not bool(rain_detection.get("error"))
     )
 
-    physical_rain_sensor_available = (
-        "wet" in irrigation_context.get("rain_sensor", {})
-        or irrigation_context.get("rain_sensor_wet") is not None
-        or irrigation_context.get("rain_inhibit") is not None
+    physical_rain_sensor_available = bool(
+        irrigation_context.get("rain_sensor_available")
     )
 
     lawn_trusted = bool(lawn_analysis_available)
