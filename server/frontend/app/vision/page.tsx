@@ -1091,6 +1091,13 @@ export default function VisionPage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
+      <a
+        href="/vision-node"
+        className="fixed bottom-4 right-4 z-50 rounded-full border border-neutral-700 bg-neutral-950/90 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-200 shadow-lg backdrop-blur transition hover:border-blue-400/60 hover:bg-blue-500/10 hover:text-blue-100"
+      >
+        Vision Node
+      </a>
+
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
