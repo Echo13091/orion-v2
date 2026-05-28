@@ -1225,7 +1225,7 @@ export default function Home() {
 
           <Section
             title="Execution Control"
-            subtitle="Auto mode can execute bounded safe actions"
+            subtitle="Auto mode can apply weather and safety-gated actions"
             right={<Pill label={automationMode === "auto" ? "Auto" : "Manual"} state={automationMode === "auto" ? "active" : "neutral"} />}
           >
             <div className="grid grid-cols-2 gap-3">

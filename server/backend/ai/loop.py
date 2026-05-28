@@ -387,26 +387,6 @@ def ai_loop() -> None:
                 },
             )
 
-            latest = get_state_snapshot()
-            if (
-                latest.get("fault")
-                and float(latest.get("cpu") or 0.0) < 60
-                and float(latest.get("memory") or 0.0) < 70
-                and not str(latest.get("fault")).startswith("manual:")
-            ):
-                update_state(
-                    fault=None,
-                    ai_status="active",
-                    mode="monitoring",
-                    last_decision={
-                        "action": "recover",
-                        "reason": "System stabilized",
-                        "result": "✅ Recovered",
-                        "trend": trend,
-                        "time": time.time(),
-                    },
-                )
-
         except Exception as exc:  # noqa: BLE001
             print(f"[AI] Loop iteration failed: {exc}")
             try:

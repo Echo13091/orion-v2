@@ -418,7 +418,7 @@ export default function DecisionCenterPage() {
             label="Execution Mode"
             value={automationMode === "auto" ? "Auto Execute" : "Manual Approval"}
             state={automationMode === "auto" ? "active" : "neutral"}
-            sub={automationMode === "auto" ? "Safe actions may execute automatically" : "Recommendations require operator approval"}
+            sub={automationMode === "auto" ? "Weather and safety rules may apply bounded actions" : "Recommendations require operator approval"}
           />
           <Card
             label="Faults"
@@ -568,7 +568,7 @@ export default function DecisionCenterPage() {
           <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
             <h2 className="text-xl font-semibold">Execution Control</h2>
             <p className="mt-1 text-sm text-neutral-500">
-              Switch between manual approval and safe auto execution. Auto mode still uses deterministic safety gates.
+              Switch between manual approval and bounded auto execution. Weather delays and safety gates are still rule-based.
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
@@ -602,7 +602,7 @@ export default function DecisionCenterPage() {
             <div className="mt-5 grid grid-cols-2 gap-3">
               <Field label="Proposed Action" value={formatMode(environment?.recommendation || decision?.action || "monitor")} />
               <Field label="Decision Source" value={environment?.recommendation ? "environment rules" : decision?.source || "rules"} />
-              <Field label="Hardware Command" value={decision?.requires_execution} />
+              <Field label="Command State" value={decision?.requires_execution} />
               <Field label="Decision Time" value={formatTime(decision?.time)} />
               <Field label="Rain Chance" value={formatPercent(weather?.rain_chance)} state={Number(weather?.rain_chance ?? 0) >= 70 ? "warn" : "neutral"} />
               <Field label="Irrigation" value={sprinkler?.running ? "Running" : "Idle"} state={sprinkler?.running ? "active" : "neutral"} />
@@ -641,7 +641,7 @@ export default function DecisionCenterPage() {
 
           <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm leading-6 text-neutral-300">
             {automationMode === "auto"
-              ? "Auto execute is enabled. Orion may apply bounded safe actions after deterministic safety checks."
+              ? "Auto execute is enabled. Weather delay and stop actions may be applied only when deterministic safety checks allow it."
               : safety?.reason || "No safety reason is currently available."}
           </div>
         </section>
