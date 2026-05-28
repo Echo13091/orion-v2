@@ -66,6 +66,30 @@ function stateClasses(state: StatusState) {
   return "bg-neutral-800 text-neutral-300 ring-1 ring-neutral-700";
 }
 
+function evidenceState(value?: string | null): StatusState {
+  if (value === "strong") return "good";
+  if (value === "usable") return "active";
+  if (value === "limited") return "warn";
+  if (value === "blocked") return "bad";
+  return "neutral";
+}
+
+function listLabel(items: unknown, fallback = "None") {
+  if (!Array.isArray(items) || items.length === 0) return fallback;
+  return items.map((item) => formatMode(String(item))).join(", ");
+}
+
+function reasonList(items: unknown) {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      return item as Record<string, unknown>;
+    })
+    .filter(Boolean) as Array<Record<string, unknown>>;
+}
+
 function Card({
   label,
   value,
@@ -160,6 +184,8 @@ export default function DecisionCenterPage() {
   const decision = system?.last_decision || {};
   const result = decision?.result || {};
   const environment = system?.environment || {};
+  const evidence = environment?.evidence || {};
+  const safety = environment?.safety || {};
   const weather = system?.weather || {};
   const sprinkler = system?.sprinkler || {};
   const thermostat = system?.thermostat || {};
@@ -381,6 +407,85 @@ export default function DecisionCenterPage() {
           />
         </div>
 
+        <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+            <div>
+              <h2 className="text-xl font-semibold">Decision Evidence</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Inputs Orion trusted, ignored, or blocked before producing this recommendation.
+              </p>
+            </div>
+
+            <div className={`rounded-full px-3 py-1 text-xs font-semibold ${stateClasses(evidenceState(evidence?.quality))}`}>
+              {formatMode(evidence?.quality || "unknown")} · {Number.isFinite(Number(evidence?.score)) ? Number(evidence.score).toFixed(2) : "—"}
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <Field
+              label="Trusted Inputs"
+              value={listLabel(evidence?.trusted_inputs)}
+              state={Array.isArray(evidence?.trusted_inputs) && evidence.trusted_inputs.length > 0 ? "good" : "neutral"}
+            />
+            <Field
+              label="Ignored Inputs"
+              value={Array.isArray(evidence?.ignored_inputs) ? evidence.ignored_inputs.length : 0}
+              state={Array.isArray(evidence?.ignored_inputs) && evidence.ignored_inputs.length > 0 ? "warn" : "good"}
+            />
+            <Field
+              label="Blockers"
+              value={Array.isArray(evidence?.blockers) ? evidence.blockers.length : 0}
+              state={Array.isArray(evidence?.blockers) && evidence.blockers.length > 0 ? "bad" : "good"}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-neutral-800 bg-black p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                Ignored / Degraded Inputs
+              </p>
+              <div className="mt-3 space-y-3">
+                {reasonList(evidence?.ignored_inputs).length === 0 ? (
+                  <p className="text-sm text-neutral-300">No ignored inputs.</p>
+                ) : (
+                  reasonList(evidence?.ignored_inputs).map((item, index) => (
+                    <div key={`ignored-${index}`} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                      <p className="text-sm font-semibold text-amber-200">
+                        {formatMode(String(item.input || "unknown"))}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-amber-100/80">
+                        {String(item.reason || "No reason provided.")}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800 bg-black p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                Safety Blockers
+              </p>
+              <div className="mt-3 space-y-3">
+                {reasonList(evidence?.blockers).length === 0 ? (
+                  <p className="text-sm text-emerald-200">No active blockers.</p>
+                ) : (
+                  reasonList(evidence?.blockers).map((item, index) => (
+                    <div key={`blocker-${index}`} className="rounded-xl border border-red-500/20 bg-red-500/10 p-3">
+                      <p className="text-sm font-semibold text-red-200">
+                        {formatMode(String(item.blocker || "blocker"))}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-red-100/80">
+                        {String(item.reason || "No reason provided.")}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
             <div className="flex items-start justify-between gap-4">
@@ -493,13 +598,13 @@ export default function DecisionCenterPage() {
           <div className="mt-5 grid gap-3 md:grid-cols-4">
             <Field
               label="Auto Execute Allowed"
-              value={environment?.safety?.auto_execute_allowed}
-              state={environment?.safety?.auto_execute_allowed ? "good" : "warn"}
+              value={safety?.auto_execute_allowed}
+              state={safety?.auto_execute_allowed ? "good" : "warn"}
             />
             <Field
               label="Requires Approval"
-              value={environment?.safety?.requires_user_approval}
-              state={environment?.safety?.requires_user_approval ? "warn" : "good"}
+              value={safety?.requires_user_approval}
+              state={safety?.requires_user_approval ? "warn" : "good"}
             />
             <Field
               label="Manual Override"
@@ -514,7 +619,7 @@ export default function DecisionCenterPage() {
           </div>
 
           <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm leading-6 text-neutral-300">
-            {environment?.safety?.reason ||
+            {safety?.reason ||
               "No safety reason is currently available."}
           </div>
         </section>
