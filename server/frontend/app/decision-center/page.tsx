@@ -213,23 +213,42 @@ export default function DecisionCenterPage() {
       };
     }
 
+    const envRecommendation = String(environment?.recommendation || "");
+    const envConfidence = String(environment?.confidence || "").toLowerCase();
     const rainChance = Number(weather?.rain_chance ?? 0);
 
-    if (rainChance >= 70 && sprinkler?.running) {
+    if (envRecommendation) {
+      const state: StatusState =
+        envRecommendation.includes("delay") ||
+        envRecommendation.includes("stop")
+          ? "warn"
+          : envConfidence === "high"
+            ? "good"
+            : "active";
+
+      const canApply =
+        envRecommendation === "delay_irrigation" ||
+        envRecommendation === "stop_or_delay_irrigation";
+
       return {
-        title: "Stop irrigation",
-        detail: `Rain chance is ${formatPercent(rainChance)} while irrigation is running.`,
-        action: "stop_sprinkler",
-        state: "warn" as StatusState,
-        canApply: true,
-        applyLabel: "Stop sprinkler",
+        title: formatMode(envRecommendation),
+        detail:
+          environment?.reason ||
+          "Environmental decision engine produced a recommendation from trusted live inputs.",
+        action: envRecommendation,
+        state,
+        canApply,
+        applyLabel:
+          envRecommendation === "stop_or_delay_irrigation"
+            ? "Review stop/delay"
+            : "Accept recommendation",
       };
     }
 
     if (rainChance >= 70) {
       return {
         title: "Delay irrigation",
-        detail: `Rain chance is ${formatPercent(rainChance)}. Orion can skip the next irrigation run.`,
+        detail: `Rain chance is ${formatPercent(rainChance)}. Orion recommends delaying irrigation.`,
         action: "delay_irrigation",
         state: "warn" as StatusState,
         canApply: true,
@@ -256,7 +275,7 @@ export default function DecisionCenterPage() {
       canApply: false,
       applyLabel: "Observe",
     };
-  }, [system, weather, sprinkler, thermostat]);
+  }, [system, environment, weather, thermostat]);
 
   const executionStatus = useMemo(() => {
     const nested = result?.result || {};
@@ -516,7 +535,7 @@ export default function DecisionCenterPage() {
                   Decision Trace
                 </p>
                 <p className="mt-2 text-sm leading-6 text-neutral-300">
-                  {decision.reason}
+                  {environment?.reason || decision.reason}
                 </p>
               </div>
             ) : null}
@@ -579,8 +598,8 @@ export default function DecisionCenterPage() {
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <Field label="System Action" value={decision?.action === "observe" ? "Monitor / no hardware command" : decision?.action || "Monitor / no hardware command"} />
-              <Field label="Decision Source" value={decision?.source || "rules"} />
+              <Field label="System Action" value={formatMode(environment?.recommendation || decision?.action || "monitor")} />
+              <Field label="Decision Source" value={environment?.recommendation ? "environment rules" : decision?.source || "rules"} />
               <Field label="Requires Execution" value={decision?.requires_execution} />
               <Field label="Decision Time" value={formatTime(decision?.time)} />
               <Field label="Rain Chance" value={formatPercent(weather?.rain_chance)} state={Number(weather?.rain_chance ?? 0) >= 70 ? "warn" : "neutral"} />

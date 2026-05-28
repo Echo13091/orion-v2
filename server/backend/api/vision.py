@@ -11,6 +11,7 @@ from typing import Any
 from tools.vision_analysis import analyze_rain_detection_from_bytes
 from flask import Response, jsonify, request
 from core.event_store import record_event
+from core.state import update_state
 
 
 VISION_NODE_URL = os.getenv("VISION_NODE_URL", "http://192.168.7.218:5000").rstrip("/")
@@ -552,6 +553,7 @@ def register_vision(app):
     def vision_grass_condition():
         try:
             payload = _analyze_grass_from_snapshot()
+            update_state(grass_condition=payload)
             return jsonify(payload)
         except urllib.error.URLError as e:
             return _json_error(
@@ -570,6 +572,7 @@ def register_vision(app):
     def vision_rain_detection():
         try:
             payload = _analyze_rain_from_snapshot()
+            update_state(rain_detection=payload)
             return jsonify(payload)
         except urllib.error.URLError as e:
             return _json_error(

@@ -319,11 +319,17 @@ def _compact_decision_state() -> dict:
     irrigation_schedule = state.get("irrigation_schedule") or {}
     irrigation_runtime = state.get("irrigation_runtime") or {}
 
+    # Use cached vision-derived evidence when available. Do not make recursive
+    # HTTP calls from this compact decision route, but do not throw away the
+    # latest known lawn/rain analysis either.
+    grass_condition = state.get("grass_condition")
+    rain_detection = state.get("rain_detection") or sprinkler.get("rain_sensor")
+
     environment = evaluate_environment(
-        grass_condition=None,
+        grass_condition=grass_condition,
         weather=weather,
         sprinkler=sprinkler,
-        rain_detection=sprinkler.get("rain_sensor"),
+        rain_detection=rain_detection,
     )
     _record_environment_decision_if_changed(environment)
 
