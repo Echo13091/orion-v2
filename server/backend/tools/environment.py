@@ -187,12 +187,31 @@ def summarize_irrigation_context(sprinkler: Dict[str, Any]) -> Dict[str, Any]:
     next_irrigation = extract_next_irrigation(sprinkler)
     last_irrigation = extract_last_irrigation(sprinkler)
 
+    rain_sensor = raw.get("rain_sensor") if is_record(raw.get("rain_sensor")) else {}
+    rain_sensor_wet = bool(rain_sensor.get("wet"))
+    rain_inhibit = bool(
+        sprinkler.get("rain_inhibit")
+        or raw.get("rain_inhibit")
+        or (rain_sensor_wet and rain_sensor.get("blocks_schedule"))
+    )
+
+    fault = bool(
+        sprinkler.get("fault")
+        or raw.get("fault")
+        or raw.get("fault_latched")
+    )
+
     return {
         "online": bool(online),
         "running": running,
         "zone": zone,
         "next_irrigation": next_irrigation,
         "last_irrigation": last_irrigation,
+        "fault": fault,
+        "rain_sensor_wet": rain_sensor_wet,
+        "rain_inhibit": rain_inhibit,
+        "rain_sensor": rain_sensor,
+        "health": sprinkler.get("health") or raw.get("health"),
     }
 
 
@@ -251,6 +270,169 @@ def classify_lawn_need(
     }
 
 
+def confidence_to_score(value: str) -> float:
+    value = str(value or "").strip().lower()
+
+    if value == "high":
+        return 0.9
+    if value == "medium":
+        return 0.6
+    if value == "low":
+        return 0.3
+
+    return 0.1
+
+
+def build_environment_evidence(
+    *,
+    weather: Dict[str, Any],
+    grass_condition: Dict[str, Any],
+    rain_detection: Dict[str, Any],
+    irrigation_context: Dict[str, Any],
+    rain_probability: float,
+    lawn_analysis_available: bool,
+    visual_evidence_detected: bool,
+    camera_rain_confidence: str,
+) -> Dict[str, Any]:
+    weather_online = weather.get("online")
+    weather_trusted = weather_online is not False and weather != {}
+
+    rain_sensor_wet = bool(irrigation_context.get("rain_sensor_wet"))
+    rain_inhibit = bool(irrigation_context.get("rain_inhibit"))
+    sprinkler_online = bool(irrigation_context.get("online"))
+    sprinkler_fault = bool(irrigation_context.get("fault"))
+
+    # Treat camera-derived vision separately from physical rain-sensor payloads.
+    # The standalone irrigation controller may provide {"wet": false}, which is
+    # useful physical evidence but should not be counted as a trusted vision snapshot.
+    vision_metric_keys = {
+        "rain_detected",
+        "wetness_score",
+        "motion_score",
+        "dark_percent",
+        "low_saturation_percent",
+        "reflection_percent",
+        "smoothness_score",
+        "visual_evidence_label",
+    }
+
+    has_vision_metrics = any(key in rain_detection for key in vision_metric_keys)
+
+    rain_detection_ok = rain_detection.get("ok")
+    if rain_detection_ok is None:
+        rain_detection_ok = has_vision_metrics
+
+    visual_trusted = (
+        bool(rain_detection_ok)
+        and has_vision_metrics
+        and not bool(rain_detection.get("error"))
+    )
+
+    physical_rain_sensor_available = (
+        "wet" in irrigation_context.get("rain_sensor", {})
+        or irrigation_context.get("rain_sensor_wet") is not None
+        or irrigation_context.get("rain_inhibit") is not None
+    )
+
+    lawn_trusted = bool(lawn_analysis_available)
+
+    trusted_inputs = []
+    ignored_inputs = []
+    blockers = []
+
+    if weather_trusted:
+        trusted_inputs.append("weather")
+    else:
+        ignored_inputs.append({
+            "input": "weather",
+            "reason": "Weather data is unavailable or marked offline.",
+        })
+
+    if sprinkler_online and not sprinkler_fault:
+        trusted_inputs.append("irrigation_controller")
+    elif sprinkler_fault:
+        blockers.append({
+            "blocker": "irrigation_controller_fault",
+            "reason": "Irrigation controller reports a fault. Do not issue automatic irrigation commands.",
+        })
+    else:
+        blockers.append({
+            "blocker": "irrigation_controller_offline",
+            "reason": "Irrigation controller is offline or unavailable.",
+        })
+
+    if physical_rain_sensor_available:
+        trusted_inputs.append("physical_rain_sensor")
+
+    if visual_trusted:
+        trusted_inputs.append("vision_snapshot")
+    else:
+        ignored_inputs.append({
+            "input": "vision_snapshot",
+            "reason": "Visual evidence is unavailable, disabled, stale, or returned an error.",
+        })
+
+    if lawn_trusted:
+        trusted_inputs.append("lawn_analysis")
+    else:
+        ignored_inputs.append({
+            "input": "lawn_analysis",
+            "reason": "Lawn analysis is unavailable due to low light, limited grass pixels, or missing camera data.",
+        })
+
+    evidence_score = 0.0
+    evidence_score += 0.30 if weather_trusted else 0.0
+    evidence_score += 0.30 if sprinkler_online and not sprinkler_fault else 0.0
+    evidence_score += 0.20 if visual_trusted else 0.0
+    evidence_score += 0.10 if lawn_trusted else 0.0
+    evidence_score += 0.10 if rain_sensor_wet or rain_inhibit else 0.0
+    evidence_score = clamp(evidence_score, 0.0, 1.0)
+
+    if blockers:
+        quality = "blocked"
+    elif evidence_score >= 0.75:
+        quality = "strong"
+    elif evidence_score >= 0.50:
+        quality = "usable"
+    else:
+        quality = "limited"
+
+    return {
+        "quality": quality,
+        "score": round(evidence_score, 3),
+        "trusted_inputs": trusted_inputs,
+        "ignored_inputs": ignored_inputs,
+        "blockers": blockers,
+        "weather": {
+            "trusted": weather_trusted,
+            "online": weather_online is not False,
+            "rain_probability": round(rain_probability, 3),
+        },
+        "irrigation_controller": {
+            "trusted": sprinkler_online and not sprinkler_fault,
+            "online": sprinkler_online,
+            "fault": sprinkler_fault,
+            "running": bool(irrigation_context.get("running")),
+            "next_irrigation": irrigation_context.get("next_irrigation"),
+        },
+        "physical_rain_sensor": {
+            "trusted": physical_rain_sensor_available,
+            "wet": rain_sensor_wet,
+            "rain_inhibit": rain_inhibit,
+        },
+        "vision": {
+            "trusted": visual_trusted,
+            "wet_surface_evidence": visual_evidence_detected,
+            "confidence": camera_rain_confidence,
+            "confidence_score": confidence_to_score(camera_rain_confidence),
+        },
+        "lawn_analysis": {
+            "trusted": lawn_trusted,
+            "available": lawn_analysis_available,
+        },
+    }
+
+
 def evaluate_environment(
     *,
     grass_condition: Dict[str, Any] | None,
@@ -297,6 +479,17 @@ def evaluate_environment(
         )
     )
 
+    evidence = build_environment_evidence(
+        weather=weather,
+        grass_condition=grass_condition,
+        rain_detection=rain_detection,
+        irrigation_context=irrigation_context,
+        rain_probability=rain_probability,
+        lawn_analysis_available=lawn_analysis_available,
+        visual_evidence_detected=visual_evidence_detected,
+        camera_rain_confidence=camera_rain_confidence,
+    )
+
     lawn_need = classify_lawn_need(
         grass_score=grass_score,
         dryness_index=dryness_index,
@@ -316,7 +509,27 @@ def evaluate_environment(
         "reason": "Environmental recommendations are advisory. Hardware actions remain gated behind operator approval.",
     }
 
-    if irrigation_context["running"]:
+    if evidence["blockers"]:
+        recommendation = "monitor_lawn"
+        confidence = "high"
+        reason = (
+            "One or more required control inputs are unavailable or faulted. "
+            "Orion will continue monitoring but will not recommend automatic irrigation action."
+        )
+
+        safety["reason"] = (
+            "Automatic action blocked because trusted controller state is unavailable or faulted."
+        )
+
+    elif irrigation_context.get("rain_sensor_wet") or irrigation_context.get("rain_inhibit"):
+        recommendation = "delay_irrigation"
+        confidence = "high"
+        reason = (
+            "Physical rain sensor or controller rain inhibit is active. "
+            "Delay irrigation regardless of camera or lawn appearance."
+        )
+
+    elif irrigation_context["running"]:
         if rain_probability >= 0.55 or visual_evidence_detected:
             recommendation = "stop_or_delay_irrigation"
             confidence = "high"
@@ -361,9 +574,8 @@ def evaluate_environment(
             )
         else:
             reason = (
-                "Forecast rain probability is high and camera evidence shows wet-surface conditions. "
-                "Lawn condition is poor, but irrigation is held because rain probability and "
-                "wet-surface evidence override watering demand."
+                "Forecast rain probability is high. "
+                "Delay irrigation even if lawn condition suggests watering need because rain risk overrides demand."
             )
 
     elif rain_probability >= 0.45 and lawn_need["need_level"] != "high":
@@ -456,7 +668,13 @@ def evaluate_environment(
         "recommendation": recommendation,
         "confidence": confidence,
         "reason": reason,
-        "safety": safety,
+        "safety": {
+            **safety,
+            "blocked_by": evidence["blockers"],
+            "evidence_quality": evidence["quality"],
+            "evidence_score": evidence["score"],
+        },
+        "evidence": evidence,
         "inputs": {
             "grass_score": round(grass_score, 3),
             "dryness_index": round(dryness_index, 3),
