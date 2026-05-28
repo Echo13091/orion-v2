@@ -466,6 +466,15 @@ export default function VisionPage() {
   const weather = system?.weather || null;
 
   const visionOnline = Boolean(vision?.online);
+  const visionNodeUrl =
+    vision?.node_url ||
+    vision?.vision_node_url ||
+    vision?.vision_node_urls?.[0] ||
+    vision?.configured_node_urls?.[0] ||
+    "";
+  const visionMjpegUrl = visionNodeUrl
+    ? `${visionNodeUrl.replace(/\/$/, "")}/stream.mjpg`
+    : "";
   const visionStatus = !vision
     ? "Loading"
     : vision.online
@@ -993,6 +1002,7 @@ export default function VisionPage() {
 
   useEffect(() => {
     if (!visionOnline) return;
+    if (visionMjpegUrl) return;
     if (autoConnectAttemptedRef.current) return;
     if (pcRef.current) return;
     if (streamState !== "idle" && streamState !== "error") return;
@@ -1148,7 +1158,7 @@ export default function VisionPage() {
             <div>
               <h2 className="text-xl font-semibold">Environmental Camera Feed</h2>
               <p className="mt-1 text-sm text-neutral-500">
-                Pi Zero 2 W · IMX708 · WebRTC
+                Pi Zero 2 W · IMX708 · MJPEG / Snapshot
               </p>
             </div>
 
@@ -1162,13 +1172,22 @@ export default function VisionPage() {
           </div>
 
           <div className="relative bg-black">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="aspect-video w-full bg-black object-contain"
-            />
+            {visionMjpegUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={visionMjpegUrl}
+                alt="Orion Pi Zero MJPEG stream"
+                className="aspect-video w-full bg-black object-contain"
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="aspect-video w-full bg-black object-contain"
+              />
+            )}
 
             {!visionOnline ? (
               <div className="absolute inset-0 flex items-center justify-center bg-black/85 p-6 text-center">
