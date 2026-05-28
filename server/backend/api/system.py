@@ -3,12 +3,13 @@ import os
 import requests
 from flask import jsonify, request
 
-from core.event_store import record_state_transition
+from core.event_store import record_event, record_state_transition
 from core.state import get_state_snapshot, replace_device_state, update_state
 from tools.environment import evaluate_environment
 
 
 _LAST_IRRIGATION_RUNTIME_STATE = None
+_LAST_ENVIRONMENT_DECISION_SIGNATURE = None
 
 STANDALONE_IRRIGATION_BASE_URL = (
     os.getenv("ORION_STANDALONE_IRRIGATION_URL")
@@ -223,6 +224,82 @@ def _record_irrigation_runtime_transition_if_changed(sprinkler: dict) -> None:
         print(f"[OPERATIONS] Failed to record irrigation runtime transition: {exc}")
 
 
+def _environment_decision_signature(environment: dict) -> tuple:
+    evidence = environment.get("evidence") if isinstance(environment.get("evidence"), dict) else {}
+
+    trusted_inputs = tuple(sorted(str(item) for item in evidence.get("trusted_inputs", []) or []))
+
+    ignored_inputs = tuple(
+        sorted(
+            str(item.get("input", ""))
+            for item in evidence.get("ignored_inputs", []) or []
+            if isinstance(item, dict)
+        )
+    )
+
+    blockers = tuple(
+        sorted(
+            str(item.get("blocker", ""))
+            for item in evidence.get("blockers", []) or []
+            if isinstance(item, dict)
+        )
+    )
+
+    return (
+        str(environment.get("recommendation", "")),
+        str(environment.get("confidence", "")),
+        str(evidence.get("quality", "")),
+        trusted_inputs,
+        ignored_inputs,
+        blockers,
+    )
+
+
+def _record_environment_decision_if_changed(environment: dict) -> None:
+    global _LAST_ENVIRONMENT_DECISION_SIGNATURE
+
+    if not isinstance(environment, dict):
+        return
+
+    signature = _environment_decision_signature(environment)
+
+    if _LAST_ENVIRONMENT_DECISION_SIGNATURE == signature:
+        return
+
+    _LAST_ENVIRONMENT_DECISION_SIGNATURE = signature
+
+    evidence = environment.get("evidence") if isinstance(environment.get("evidence"), dict) else {}
+    blockers = evidence.get("blockers") if isinstance(evidence.get("blockers"), list) else []
+    ignored_inputs = evidence.get("ignored_inputs") if isinstance(evidence.get("ignored_inputs"), list) else []
+
+    severity = "warning" if blockers else "info"
+
+    recommendation = str(environment.get("recommendation") or "unknown")
+    confidence = str(environment.get("confidence") or "unknown")
+    quality = str(evidence.get("quality") or "unknown")
+
+    record_event(
+        subsystem="environment",
+        node="environmental-decision-engine",
+        severity=severity,
+        event_type="decision_evidence_changed",
+        message=f"Environmental recommendation is {recommendation} ({confidence}) with {quality} evidence",
+        source="environment_decision_engine",
+        evidence={
+            "recommendation": recommendation,
+            "confidence": confidence,
+            "reason": environment.get("reason"),
+            "evidence_quality": quality,
+            "evidence_score": evidence.get("score"),
+            "trusted_inputs": evidence.get("trusted_inputs", []),
+            "ignored_inputs": ignored_inputs,
+            "blockers": blockers,
+            "safety": environment.get("safety", {}),
+            "inputs": environment.get("inputs", {}),
+        },
+    )
+
+
 def _compact_decision_state() -> dict:
     """
     Lightweight state for Decision Center.
@@ -248,6 +325,7 @@ def _compact_decision_state() -> dict:
         sprinkler=sprinkler,
         rain_detection=sprinkler.get("rain_sensor"),
     )
+    _record_environment_decision_if_changed(environment)
 
     compact_sprinkler = {
         "online": sprinkler.get("online"),
@@ -383,6 +461,7 @@ def register_system(app):
             sprinkler=sprinkler,
             rain_detection=rain_detection,
         )
+        _record_environment_decision_if_changed(state["environment"])
 
         return jsonify(state)
 
