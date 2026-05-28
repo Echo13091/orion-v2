@@ -4,7 +4,7 @@
 
 Orion V2 is a local-first supervisory automation platform for real HVAC, irrigation, thermostat, weather, environmental vision, and distributed edge-control systems.
 
-It runs on NVIDIA Jetson edge hardware using Docker Compose and integrates Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, Flask APIs, a Next.js operations dashboard, MJPEG / snapshot-based environmental video, deterministic safety logic, event history, and AI-assisted operational recommendations.
+It runs on NVIDIA Jetson edge hardware using Docker Compose and integrates Raspberry Pi field controllers, ESP32 relay nodes, MQTT telemetry, Flask APIs, a Next.js operations dashboard, WebRTC video, deterministic safety logic, event history, and AI-assisted operational recommendations.
 
 This is not a simulated dashboard. Orion supervises real distributed hardware, normalizes telemetry, exposes degraded subsystem state, records command and decision history, tracks state transitions, and routes hardware actions through safe operator-approved control paths.
 
@@ -37,7 +37,7 @@ Core engineering themes:
 | Messaging | Mosquitto MQTT |
 | Field controllers | Raspberry Pi HVAC and irrigation controllers |
 | Edge nodes | ESP32 relay / telemetry nodes |
-| Vision node | Raspberry Pi Zero 2 W, IMX708 camera, MJPEG stream, snapshot endpoint |
+| Vision node | Raspberry Pi Zero 2 W, IMX708 camera, WebRTC stream |
 | Vision interpretation | Jetson-side lawn, rain / wet-surface, and low-light analysis |
 | AI layer | Local LLM-assisted monitoring and recommendations |
 | Control model | Deterministic safety logic with operator-approved execution |
@@ -107,7 +107,7 @@ Orion is designed around one central idea: real automation systems need more tha
 - ESP32 relay / telemetry nodes
 - Thermostat state normalization
 - Sprinkler scheduling, manual control, and weather-aware skip logic
-- Environmental vision node with IMX708 camera, MJPEG live view, and snapshot endpoint
+- Environmental vision node with IMX708 camera and WebRTC streaming
 
 ### Operations and Reliability
 
@@ -116,7 +116,6 @@ Orion is designed around one central idea: real automation systems need more tha
 - Compacted repeated-event timeline
 - Manual command audit events
 - Automation policy decision events
-- Environmental decision evidence events
 - Irrigation state transition history
 - Controller acknowledgement normalization
 - Optional hardware-control token gate
@@ -125,9 +124,6 @@ Orion is designed around one central idea: real automation systems need more tha
 ### Decision Support
 
 - Environmental decision engine
-- Structured evidence model for trusted, ignored, and blocked inputs
-- Decision Center evidence view
-- Operations audit trail for environmental decision evidence changes
 - Rain / wet-surface evidence handling
 - Low-light visual-analysis safeguards
 - Local LLM-assisted monitoring and recommendations
@@ -171,7 +167,7 @@ Outdoor conditions, rain probability, forecast context, and automation impact.
 
 ![Orion Decision Center](docs/screenshots/orion-decision-center.jpeg)
 
-Current recommendation, decision trace, safety gating, automation mode, command result, trusted evidence, ignored inputs, blockers, and raw decision state.
+Current recommendation, decision trace, safety gating, automation mode, command result, and raw decision state.
 
 ### Thermostat / HVAC Node
 
@@ -191,8 +187,8 @@ Orion demonstrates engineering across multiple layers:
 - Dockerized edge deployment
 - MQTT-based device communication
 - REST API integration
-- MJPEG / snapshot-based camera integration
-- browser-side media workflows
+- WebRTC stream integration
+- browser-side media recording
 - embedded hardware integration
 - Raspberry Pi field-controller design
 - ESP32 relay-node integration
@@ -201,7 +197,6 @@ Orion demonstrates engineering across multiple layers:
 - environmental camera monitoring
 - deterministic visual analysis
 - weather-aware decision logic
-- structured decision evidence modeling
 - AI-assisted recommendation workflows
 - fault detection and operational visibility
 - safety-aware hardware control
@@ -225,7 +220,7 @@ The goal is to demonstrate a complete edge automation platform, not a simple rel
 │  └── AI-Assisted Monitoring Loop                           │
 └───────────────────────────┬────────────────────────────────┘
                             │
-                  REST / MQTT / MJPEG / Snapshots
+                  REST / MQTT / WebRTC
                             │
 ┌───────────────────────────▼────────────────────────────────┐
 │              Raspberry Pi Field Controllers                │
@@ -258,21 +253,20 @@ Environmental vision runs as a separate subsystem:
 │                                                            │
 │  ├── IMX708 Camera                                         │
 │  ├── Picamera2                                             │
-│  ├── MJPEG Stream                                          │
+│  ├── WebRTC Stream Service                                 │
 │  ├── Snapshot Endpoint                                     │
-│  ├── Camera Health / Status API                            │
-│  └── systemd Runtime                                       │
+│  ├── Autofocus Control                                     │
+│  └── Camera Health / Status API                            │
 └───────────────────────────┬────────────────────────────────┘
                             │
-                    REST / MJPEG Integration
+                   REST / WebRTC Integration
                             │
 ┌───────────────────────────▼────────────────────────────────┐
 │                    Orion / Jetson Platform                 │
 │                                                            │
 │  Displays live environmental video and evaluates vision     │
 │  context such as lawn condition, rain / wet-surface         │
-│  evidence, low-light analysis availability, and trusted     │
-│  decision evidence.                                        │
+│  evidence, and low-light analysis availability.             │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -287,13 +281,12 @@ Orion separates the main command dashboard from detailed subsystem views.
 ├── /decision-center
 ├── /operations
 ├── /vision
-├── /vision-node
 ├── /weather
 ├── /sprinkler
 └── /thermostat
 ```
 
-The main dashboard provides a high-level operational overview. Each subsystem page provides deeper engineering visibility. The Operations Console provides event history, active faults, command audit records, policy decisions, evidence changes, and state transitions.
+The main dashboard provides a high-level operational overview. Each subsystem page provides deeper engineering visibility. The Operations Console provides event history, active faults, command audit records, policy decisions, and state transitions.
 
 ### Main Dashboard
 
@@ -317,15 +310,12 @@ The Decision Center shows:
 - current recommendation
 - action source
 - decision trace
-- trusted decision evidence
-- ignored / degraded inputs
-- blockers
 - safety context
 - manual vs automatic execution mode
 - command result
 - raw decision JSON
 
-Decision Center recommendations are recorded into the Operations event history when they represent meaningful policy decisions, safety decisions, evidence changes, manual override pauses, or recommended actions.
+Decision Center recommendations are recorded into the Operations event history when they represent meaningful policy decisions, safety decisions, manual override pauses, or recommended actions.
 
 ### Operations Console
 
@@ -336,7 +326,6 @@ The Operations Console shows:
 - active faults
 - node health
 - automation policy decisions
-- environmental decision evidence changes
 - manual command audit events
 - state transition history
 - execution evidence
@@ -349,7 +338,6 @@ Example Operations events:
 
 ```txt
 Vision node unreachable
-Environmental recommendation is delay_irrigation (high) with usable evidence
 Manual run zone 6 for 1 minute(s)
 Manual sprinkler stop
 irrigation transitioned from idle to manual_zone_running
@@ -361,11 +349,12 @@ Rain likely (100%). Next irrigation run is already skipped; no sprinkler output 
 
 The Vision page shows:
 
-- live MJPEG camera feed
+- live WebRTC camera feed
 - stream status
-- direct field-node access
 - camera health
 - FPS and resolution
+- focus state
+- lens position
 - frame freshness
 - Jetson-side lawn condition interpretation
 - Jetson-side rain / wet-surface evidence evaluation
@@ -463,8 +452,10 @@ irrigation transitioned from manual_zone_running to idle
 The Vision subsystem provides:
 
 - live environmental video from the Raspberry Pi Zero 2 W camera node
-- MJPEG streaming
+- WebRTC streaming
+- browser recording
 - snapshot capture
+- autofocus control
 - frame freshness telemetry
 - camera health status
 - fault state
@@ -480,15 +471,12 @@ The environmental decision engine combines:
 
 - weather conditions
 - rain probability
-- physical rain-sensor state
-- controller health
 - camera rain evidence
 - visual lawn condition
 - dryness index
 - sprinkler runtime state
 - next scheduled irrigation
 - low-light analysis availability
-- trusted / ignored / blocked evidence classification
 
 Example recommendation:
 
@@ -499,7 +487,7 @@ Delay irrigation
 Example reason:
 
 ```txt
-Rain probability is high and trusted controller evidence shows irrigation should be delayed.
+Rain probability is high and the environmental camera shows rain or wet-surface evidence.
 Delay irrigation and continue monitoring lawn condition.
 ```
 
@@ -580,3 +568,650 @@ The important design goal is normalization: different hardware backends can feed
 For a Jetson-based deployment:
 
 ```bash
+git clone <repository-url>
+cd orion-v2
+docker compose up -d --build
+```
+
+Then open:
+
+```txt
+http://<JETSON-IP>:3001
+```
+
+Check service status:
+
+```bash
+docker compose ps
+```
+
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+For local development, see [Running Locally](#running-locally).
+
+---
+
+## Docker Deployment
+
+Orion runs as a Docker Compose stack on the Jetson.
+
+Current services:
+
+```txt
+orion-frontend   Next.js dashboard
+orion-backend    Flask API, monitoring loop, control routing, vision proxy, and thermostat normalization
+orion-mqtt       Mosquitto MQTT broker
+```
+
+Thermostat normalization currently runs through the backend/runtime integration layer rather than a separate Docker Compose service.
+
+### Runtime State Note
+
+The backend is intentionally deployed as a single Gunicorn process because Orion's live runtime state, background monitoring loop, and in-memory device snapshot are process-local. Gunicorn threads are used within that single process so slow hardware, vision, or event requests cannot block unrelated health and dashboard routes. Future production hardening should move runtime state to a persistent shared store such as SQLite before increasing backend process count.
+
+Start the stack:
+
+```bash
+docker compose up -d --build
+```
+
+Check status:
+
+```bash
+docker compose ps
+```
+
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+Default ports:
+
+```txt
+Frontend: http://<JETSON-IP>:3001
+Backend:  http://<JETSON-IP>:5001
+MQTT:     <JETSON-IP>:1883
+```
+
+The included `docker-compose.yml` reflects the author's local Jetson deployment. For another network, update the vision-node, controller, and service URLs to match the target environment before running the stack.
+
+---
+
+## API Examples
+
+### System State
+
+```txt
+GET /v1/system
+```
+
+### Operations
+
+Operations API endpoints:
+
+- `GET /v1/events` — raw Operations event history
+- `GET /v1/events?compact=true` — compacted timeline events with repeat counts, first-seen time, latest-seen time, and latest evidence
+- `GET /v1/faults` — current degraded subsystem and active fault state
+- `GET /v1/faults?include_recovered=true` — fault summary including recovered faults
+- `GET /v1/events?subsystem=irrigation` — events filtered by subsystem
+- `GET /v1/events?severity=warning` — events filtered by severity
+- `GET /v1/events?event_type=state_transition` — events filtered by event type
+
+Example fault summary fields:
+
+- `key`
+- `subsystem`
+- `node`
+- `status`
+- `severity`
+- `event_type`
+- `message`
+- `first_seen`
+- `last_seen`
+- `repeat_count`
+- `recovered_at`
+- `impact`
+
+The Operations Console uses `/v1/faults` for degraded subsystem and active fault state, and `/v1/events?compact=true` for the compacted event timeline.
+
+### Vision
+
+```txt
+GET  /v1/vision/status
+GET  /v1/vision/snapshot
+GET  /v1/vision/grass-condition
+GET  /v1/vision/rain-detection
+POST /v1/vision/focus
+POST /v1/vision/restart-camera
+POST /v1/vision/offer
+```
+
+### Thermostats
+
+```txt
+GET  /v1/thermostats
+GET  /v1/thermostats/{id}
+POST /v1/thermostats/ingest
+POST /v1/thermostats/{id}/setpoint
+GET  /v1/thermostats/events
+```
+
+### Control
+
+```txt
+POST /v1/control/sprinkler/zone
+POST /v1/control/sprinkler/stop
+POST /v1/control/sprinkler/program-now
+POST /v1/control/sprinkler/skip
+POST /v1/control/sprinkler/clear-skip
+GET  /v1/control/sprinkler/schedule
+POST /v1/control/sprinkler/schedule
+POST /v1/control/thermostat/setpoint
+POST /v1/control/thermostat/mode
+POST /v1/control/thermostat/fan
+GET  /v1/control/ai/recommendation
+POST /v1/control/ai/mode
+POST /v1/control/ai/execute
+POST /v1/control/ai/apply
+```
+
+### Assistant / Sessions
+
+```txt
+GET  /v1/sessions
+GET  /v1/session/{id}
+POST /v1/chat/stream
+```
+
+---
+
+## Event Model
+
+Operations events are stored as structured JSON objects.
+
+Example:
+
+```json
+{
+  "id": "evt_example",
+  "timestamp": 1779495873.735326,
+  "subsystem": "irrigation",
+  "node": "sprinkler-controller",
+  "severity": "info",
+  "event_type": "manual_zone_start",
+  "message": "Manual run zone 6 for 1 minute(s)",
+  "source": "manual_control",
+  "evidence": {
+    "zone": 6,
+    "minutes": 1,
+    "command": "start_zone",
+    "result": {
+      "ok": true,
+      "normalized_status": "accepted_redirect",
+      "controller_acknowledged": true
+    }
+  }
+}
+```
+
+State transition example:
+
+```json
+{
+  "event_type": "state_transition",
+  "message": "irrigation transitioned from idle to manual_zone_running",
+  "evidence": {
+    "from_state": "idle",
+    "to_state": "manual_zone_running",
+    "reason": "Manual run zone 6 for 1 minute(s)",
+    "zone": 6,
+    "minutes": 1
+  }
+}
+```
+
+---
+
+## Example System Payload
+
+```json
+{
+  "ai_status": "active",
+  "automation_mode": "manual",
+  "fault": null,
+  "weather": {
+    "online": true,
+    "temp": 85.0,
+    "rain_chance": 100
+  },
+  "sprinkler": {
+    "online": true,
+    "running": false,
+    "next_run": "6:00 AM · 10 min"
+  },
+  "thermostat": {
+    "online": true,
+    "temperature": 75.4,
+    "setpoint": 72,
+    "cooling": true,
+    "fan": true
+  },
+  "environment": {
+    "recommendation": "delay_irrigation",
+    "confidence": "high",
+    "reason": "Rain probability is high. Delay irrigation and continue monitoring."
+  }
+}
+```
+
+---
+
+## Technology Stack
+
+### Frontend
+
+- Next.js
+- React
+- TypeScript
+- WebRTC viewer
+- subsystem detail pages
+- Operations Console
+- live polling
+- assistant interface
+
+### Backend
+
+- Python
+- Flask
+- REST APIs
+- MQTT integration
+- system state aggregation
+- device control routing
+- vision proxy routes
+- thermostat normalization
+- environmental decision engine
+- operations event store
+- state transition logging
+- command audit logging
+
+### Infrastructure
+
+- NVIDIA Jetson
+- Docker
+- Docker Compose
+- Mosquitto MQTT
+- Linux
+- local network deployment
+
+### Hardware
+
+- Raspberry Pi 4 field controllers
+- Raspberry Pi Zero 2 W vision node
+- IMX708 camera
+- ESP32 relay nodes
+- HVAC equipment
+- irrigation equipment
+
+### AI / Automation
+
+- local LLM support
+- Ollama integration
+- deterministic safety logic
+- AI-assisted explanations
+- structured recommendations
+- manual / automatic execution modes
+- decision audit events
+
+---
+
+## Field Controller Independence
+
+HVAC and irrigation controllers are designed to run independently on Raspberry Pi hardware.
+
+Orion provides centralized monitoring, AI-assisted recommendations, and operator control, but each field controller maintains its own local runtime state, scheduling, safety logic, and fail-safe behavior if the central Jetson application server is unavailable.
+
+This separation keeps hardware execution close to the equipment and prevents the dashboard or AI layer from becoming a single point of failure.
+
+---
+
+## Reliability and Safety Design
+
+Orion is designed around predictable hardware behavior and operational reliability.
+
+Key reliability concepts include:
+
+- field-controller independence
+- local controller ownership of hardware logic
+- Dockerized application services
+- systemd-managed field services
+- runtime state persistence
+- fault visibility
+- degraded subsystem visibility
+- operations event history
+- compacted repeated event timeline
+- command audit trail
+- state transition history
+- stale telemetry detection
+- camera-node reachability checks
+- visual condition telemetry
+- low-light analysis handling
+- compressor lockout protection
+- minimum equipment on/off timers
+- fan post-run handling
+- relay feedback monitoring
+- manual override capability
+- safe stop commands
+- weather-aware irrigation protection
+- expected controller acknowledgement normalization
+
+Important safety goals include:
+
+- do not blindly assume hardware commands succeed
+- expose active faults clearly
+- expose degraded subsystem state clearly
+- separate recommendation from execution
+- avoid running automation when hardware is unavailable
+- avoid treating unavailable sensor data as valid evidence
+- detect offline field nodes
+- show last decision and recommendation
+- provide manual override behavior
+- avoid unsafe automation when device state is unknown
+- avoid treating low-light visual analysis as reliable lawn data
+- preserve execution evidence for hardware commands
+
+Orion is an educational engineering project and is not a certified commercial control system.
+
+---
+
+## Running Locally
+
+### Backend
+
+```bash
+cd server/backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+Backend:
+
+```txt
+http://127.0.0.1:5001
+```
+
+### Frontend
+
+```bash
+cd server/frontend
+npm install
+npm run dev
+```
+
+Frontend:
+
+```txt
+http://localhost:3000
+```
+
+---
+
+## Environment Variables
+
+Example environment variables:
+
+```txt
+NEXT_PUBLIC_BACKEND_URL=http://<JETSON-IP>:5001
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=mistral
+WEATHER_LOCATION=<CITY,STATE>
+MQTT_HOST=localhost
+MQTT_PORT=1883
+VISION_NODE_URL=http://<VISION_NODE_HOST>:5000
+VISION_NODE_FALLBACK_URL=http://<OPTIONAL_PRIVATE_FALLBACK_HOST>:5000
+VISION_TIMEOUT=5.0
+ORION_THERMOSTAT_SYNC_INTERVAL_SECONDS=10
+ORION_EVENT_LOG_PATH=/tmp/orion_events.jsonl
+SPRINKLER_BASE_URL=http://<IRRIGATION_CONTROLLER_HOST>:5000
+SPRINKLER_ZONE_OFFSET=-1
+```
+
+Actual values may vary depending on local, Docker, Jetson, or field-controller deployment.
+
+---
+
+## Quality Gates
+
+Orion includes a basic GitHub Actions workflow for repository health checks.
+
+Current CI checks:
+
+- frontend dependency install
+- frontend lint check
+- frontend production build
+- backend dependency install
+- backend Flask app import smoke check
+- backend route-map smoke check
+
+The backend CI job runs with startup disabled so hardware polling, local LLM warmup, and field-controller integrations are not required for repository validation.
+
+---
+
+## Repository Structure
+
+```txt
+server/
+├── backend/
+│   ├── api/
+│   ├── ai/
+│   ├── core/
+│   ├── routes/
+│   ├── tools/
+│   ├── app.py
+│   ├── thermostat_service.py
+│   └── thermostat_bridge.py
+└── frontend/
+    └── app/
+        ├── page.tsx
+        ├── decision-center/
+        ├── operations/
+        ├── sprinkler/
+        ├── thermostat/
+        ├── thermostats/
+        ├── vision/
+        └── weather/
+
+docs/
+├── screenshots/
+
+docker-compose.yml
+docker-compose.override.yml
+```
+
+---
+
+## Security Notes
+
+The current deployment is intended for local network / development use.
+
+Important security considerations before exposing Orion outside a private LAN:
+
+- do not expose MQTT publicly without authentication
+- do not expose the vision node publicly
+- do not port-forward the dashboard or backend without access control
+- add dashboard authentication before remote access
+- add MQTT username/password and ACLs
+- use HTTPS / reverse proxy for external access
+- keep hardware control endpoints protected
+- keep camera endpoints protected
+- avoid running on public Wi-Fi without additional security hardening
+
+Orion is currently designed as a local-first edge automation system.
+
+---
+
+## Safety Notes
+
+This project interacts with real electrical, HVAC, irrigation, and camera hardware.
+
+Important safety considerations:
+
+- understand wiring before connecting relays
+- use proper relay isolation
+- verify voltage levels
+- avoid unsafe HVAC short-cycling
+- provide manual shutoff methods
+- test with disconnected loads first
+- do not rely only on software for emergency shutoff
+- follow safe electrical practices
+- use camera hardware responsibly
+- use at your own risk
+
+Orion is an educational engineering project, not a certified commercial control system.
+
+---
+
+## Current Status
+
+Working features:
+
+- Docker Compose deployment on NVIDIA Jetson
+- containerized frontend, backend, MQTT broker, and thermostat bridge
+- clean main operations dashboard
+- dedicated subsystem detail pages
+- Operations Console
+- Operations degraded subsystem panel
+- Operations quick filters
+- Operations repeated-event compaction
+- `/v1/events` event API
+- structured event timeline
+- active fault visibility
+- active fault deduplication
+- node health view
+- manual command audit events
+- automation policy decision events
+- irrigation state transition history
+- controller acknowledgement normalization
+- assistant interface
+- saved chat/session support
+- live system metrics
+- AI-assisted recommendation display
+- environmental decision engine
+- operations event store
+- state transition logging
+- command audit logging
+- manual and automatic execution mode display
+- HVAC integration support
+- thermostat state normalization
+- sprinkler integration support
+- environmental vision node integration
+- vision degraded-mode handling
+- unavailable camera evidence handling
+- embedded WebRTC camera stream
+- browser recording for vision stream
+- snapshot support
+- autofocus control
+- visual lawn condition analysis
+- visual rain / wet-surface evidence detection
+- low-light lawn analysis handling
+- weather-aware irrigation logic
+- fault state display
+- Raspberry Pi field-controller integration
+- Raspberry Pi Zero 2 W camera-node integration
+- ESP32 node integration support
+- local LLM support
+- Jetson edge deployment support
+- distributed MQTT messaging
+
+Planned improvements:
+
+- unified device registry
+- persistent event storage volume
+- fault correlation across subsystems
+- controller heartbeat dashboard
+- improved lawn-region targeting and calibration
+- watering restriction awareness
+- irrigation verification from environmental snapshots
+- RS485 / Modbus adapter support
+- additional thermostat adapters
+- automated recovery workflows
+- production Docker hardening
+- persistent Docker volumes
+- MQTT authentication
+- dashboard authentication
+- reverse proxy / HTTPS
+- public demo video
+- hardware simulation mode
+
+---
+
+## Project Relevance
+
+Orion V2 demonstrates the ability to build a complete connected system across multiple layers of software, hardware, networking, and controls engineering.
+
+This project is especially relevant to roles involving:
+
+- IoT engineering
+- Edge AI systems
+- Backend API development
+- Full-stack development
+- Embedded systems integration
+- Automation and controls engineering
+- Hardware-adjacent software development
+- Distributed telemetry systems
+- Computer vision infrastructure
+
+Orion V2 demonstrates:
+
+- frontend dashboard
+- backend API
+- AI-assisted automation
+- WebRTC video integration
+- visual analysis
+- environmental decision logic
+- Raspberry Pi field controllers
+- Raspberry Pi Zero camera node
+- ESP32 hardware nodes
+- MQTT communication
+- Docker Compose deployment
+- device telemetry
+- relay control
+- persistent state
+- fault handling
+- degraded subsystem handling
+- compacted operations timeline
+- event timeline
+- command audit trail
+- state transition history
+- operations console
+- safety-aware decision logic
+- local edge deployment
+- supervisory orchestration
+
+This makes the project relevant to full-stack development, IoT engineering, embedded systems, automation, edge AI, backend API development, computer vision infrastructure, and control-system integration.
+
+---
+
+## Author
+
+David Echols  
+GitHub: Echo13091
+
+Built as a distributed edge automation project combining AI-assisted software, NVIDIA Jetson edge compute, Docker Compose deployment, Raspberry Pi field controllers, Raspberry Pi Zero 2 W environmental vision, ESP32 hardware nodes, and real home automation equipment.
+
+---
+
+## Licensing
+
+All rights reserved.
+
+This repository is provided for portfolio and educational viewing purposes only.
+
+No permission is granted to copy, redistribute, modify, deploy, or commercially use Orion V2 without explicit written permission from the author.
