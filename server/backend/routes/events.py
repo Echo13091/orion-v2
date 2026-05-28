@@ -5,6 +5,7 @@ from typing import Any
 from flask import Blueprint, jsonify, request
 
 from core.event_store import read_events, seed_demo_events_if_empty
+from core.state import get_state_snapshot
 
 
 events_bp = Blueprint("events", __name__, url_prefix="/v1")
@@ -228,6 +229,155 @@ def get_events():
         }
     )
 
+
+def _live_fault_summary() -> list[dict[str, Any]]:
+    state = get_state_snapshot()
+
+    # /v1/faults is event-route code, so it can otherwise read stale controller
+    # state if /v1/system has not refreshed the standalone sprinkler yet.
+    # Refresh here before calculating live active faults.
+    try:
+        from api.system import _persist_live_sprinkler_state, _sprinkler_with_live_standalone
+
+        sprinkler_snapshot = state.get("sprinkler") if isinstance(state.get("sprinkler"), dict) else {}
+        refreshed_sprinkler = _sprinkler_with_live_standalone(sprinkler_snapshot)
+        _persist_live_sprinkler_state(refreshed_sprinkler)
+        state = get_state_snapshot()
+    except Exception as exc:
+        print(f"[OPERATIONS] Failed to refresh sprinkler before live fault summary: {exc}")
+
+    now = float(state.get("last_update") or 0)
+
+    faults: list[dict[str, Any]] = []
+
+    def add_fault(
+        *,
+        key: str,
+        subsystem: str,
+        node: str,
+        severity: str,
+        event_type: str,
+        message: str,
+        source: str,
+        evidence: dict[str, Any] | None = None,
+        impact: str | None = None,
+    ) -> None:
+        faults.append(
+            {
+                "key": key,
+                "subsystem": subsystem,
+                "node": node,
+                "status": "active",
+                "severity": severity,
+                "event_type": event_type,
+                "message": message,
+                "source": source,
+                "first_seen": now,
+                "last_seen": now,
+                "repeat_count": 1,
+                "latest_event_id": None,
+                "recovered_at": None,
+                "recovery_event_id": None,
+                "impact": impact or "Current live subsystem state requires operator review.",
+                "evidence": evidence or {},
+            }
+        )
+
+    sprinkler = state.get("sprinkler") if isinstance(state.get("sprinkler"), dict) else {}
+    thermostat = state.get("thermostat") if isinstance(state.get("thermostat"), dict) else {}
+
+    global_fault = state.get("fault")
+    stale_sprinkler_fault = (
+        isinstance(global_fault, str)
+        and global_fault.startswith("sprinkler:")
+        and sprinkler.get("online") is True
+        and sprinkler.get("fault") is not True
+    )
+    stale_thermostat_fault = (
+        isinstance(global_fault, str)
+        and global_fault.startswith("thermostat:")
+        and thermostat.get("online") is True
+        and thermostat.get("fault") is not True
+    )
+
+    if global_fault and not stale_sprinkler_fault and not stale_thermostat_fault:
+        add_fault(
+            key="live::system::fault",
+            subsystem="system",
+            node="orion",
+            severity="critical",
+            event_type="fault",
+            message=str(global_fault),
+            source="live_state",
+            evidence={"fault": global_fault},
+            impact="Current global Orion fault is active.",
+        )
+
+    if sprinkler.get("online") is False or sprinkler.get("fault") is True:
+        message = (
+            sprinkler.get("fault_message")
+            or sprinkler.get("error")
+            or "Sprinkler controller unavailable"
+        )
+        add_fault(
+            key="live::irrigation::sprinkler",
+            subsystem="irrigation",
+            node="sprinkler-controller",
+            severity="critical" if sprinkler.get("online") is False else "warning",
+            event_type="node_offline" if sprinkler.get("online") is False else "fault",
+            message=str(message),
+            source="live_state",
+            evidence={
+                "online": sprinkler.get("online"),
+                "fault": sprinkler.get("fault"),
+                "fault_code": sprinkler.get("fault_code"),
+                "health": sprinkler.get("health"),
+            },
+            impact="Irrigation automation should not execute until the controller is healthy.",
+        )
+
+    thermostat = state.get("thermostat") if isinstance(state.get("thermostat"), dict) else {}
+    if thermostat.get("online") is False or thermostat.get("fault") is True:
+        message = (
+            thermostat.get("fault_message")
+            or thermostat.get("error")
+            or "Thermostat controller unavailable"
+        )
+        add_fault(
+            key="live::hvac::thermostat",
+            subsystem="hvac",
+            node="thermostat-controller",
+            severity="critical" if thermostat.get("online") is False else "warning",
+            event_type="node_offline" if thermostat.get("online") is False else "fault",
+            message=str(message),
+            source="live_state",
+            evidence={
+                "online": thermostat.get("online"),
+                "fault": thermostat.get("fault"),
+                "fault_code": thermostat.get("fault_code"),
+                "health": thermostat.get("health"),
+            },
+            impact="HVAC automation should not execute until the controller is healthy.",
+        )
+
+    fault_status = state.get("fault_status") if isinstance(state.get("fault_status"), dict) else {}
+    manual_override = fault_status.get("manual_override") if isinstance(fault_status.get("manual_override"), dict) else {}
+    if manual_override.get("active"):
+        add_fault(
+            key="live::automation::manual_override",
+            subsystem="automation",
+            node="orion-brain",
+            severity="warning",
+            event_type="policy_block",
+            message="Manual override is active",
+            source="live_state",
+            evidence=manual_override,
+            impact="Automatic hardware actions are paused while manual override is active.",
+        )
+
+    return faults
+
+
 @events_bp.get("/faults")
 def get_faults():
     seed_demo_events_if_empty()
@@ -240,11 +390,18 @@ def get_faults():
     except ValueError:
         limit = 500
 
-    events = read_events(limit=500)
-    faults = _build_fault_summary(events)
+    live_faults = _live_fault_summary()
+    historical_faults = _build_fault_summary(read_events(limit=500))
 
-    if not include_recovered:
-        faults = [fault for fault in faults if fault.get("status") == "active"]
+    if include_recovered:
+        recovered_faults = [
+            fault
+            for fault in historical_faults
+            if fault.get("status") == "recovered"
+        ]
+        faults = live_faults + recovered_faults
+    else:
+        faults = live_faults
 
     faults = faults[:limit]
 
@@ -252,9 +409,7 @@ def get_faults():
         {
             "ok": True,
             "count": len(faults),
-            "active_fault_count": len(
-                [fault for fault in faults if fault.get("status") == "active"]
-            ),
+            "active_fault_count": len(live_faults),
             "include_recovered": include_recovered,
             "faults": faults,
         }
