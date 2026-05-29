@@ -654,9 +654,9 @@ export default function DecisionCenterPage() {
         </section>
 
         <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg">
-          <h2 className="text-xl font-semibold">Command Result</h2>
+          <h2 className="text-xl font-semibold">Execution Result</h2>
           <p className="mt-1 text-sm text-neutral-500">
-            Last operator action from this page.
+            Latest automation or operator action.
           </p>
 
           <pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-black p-4 text-xs leading-5 text-neutral-300">
