@@ -78,12 +78,13 @@ type VisionEvidence = {
 
 type GrassCondition = {
   ok?: boolean;
+  analysis_available?: boolean;
   condition?: string;
-  score?: number;
-  dryness_index?: number;
-  green_percent?: number;
-  dry_percent?: number;
-  dark_percent?: number;
+  score?: number | null;
+  dryness_index?: number | null;
+  green_percent?: number | null;
+  dry_percent?: number | null;
+  dark_percent?: number | null;
   valid_percent?: number;
   reason?: string;
   time?: string;
@@ -258,6 +259,18 @@ function isLawnAnalysisAvailable(grassCondition?: GrassCondition | null) {
   if (Number.isFinite(validPercent) && validPercent < 5) return false;
 
   return true;
+}
+
+function isLawnAnalysisLimited(grassCondition?: GrassCondition | null) {
+  const condition = String(grassCondition?.condition || "").toLowerCase();
+
+  return (
+    grassCondition?.analysis_available === false ||
+    grassCondition?.ok === false ||
+    condition === "low_light" ||
+    condition === "night" ||
+    condition === "limited_visibility"
+  );
 }
 
 function lawnConditionLabel(grassCondition?: GrassCondition | null) {
@@ -1417,26 +1430,30 @@ export default function VisionPage() {
               <Field
                 label="Score"
                 value={
-                  Number.isFinite(Number(grassCondition?.score))
-                    ? `${Number(grassCondition?.score).toFixed(0)} / 100`
-                    : "—"
+                  isLawnAnalysisLimited(grassCondition)
+                    ? "—"
+                    : Number.isFinite(Number(grassCondition?.score))
+                      ? `${Number(grassCondition?.score).toFixed(0)} / 100`
+                      : "—"
                 }
                 state={
-                  Number(grassCondition?.score ?? 0) >= 65
-                    ? "good"
-                    : Number(grassCondition?.score ?? 0) >= 45
-                      ? "warn"
-                      : Number(grassCondition?.score ?? 0) > 0
-                        ? "bad"
-                        : "neutral"
+                  isLawnAnalysisLimited(grassCondition)
+                    ? "neutral"
+                    : Number(grassCondition?.score ?? 0) >= 65
+                      ? "good"
+                      : Number(grassCondition?.score ?? 0) >= 45
+                        ? "warn"
+                        : Number(grassCondition?.score ?? 0) > 0
+                          ? "bad"
+                          : "neutral"
                 }
               />
-              <Field label="Dryness" value={formatNumber(grassCondition?.dryness_index, 3)} />
-              <Field label="Green" value={formatPercent(grassCondition?.green_percent, 1)} state="good" />
+              <Field label="Dryness" value={isLawnAnalysisLimited(grassCondition) ? "—" : formatNumber(grassCondition?.dryness_index, 3)} />
+              <Field label="Green" value={isLawnAnalysisLimited(grassCondition) ? "—" : formatPercent(grassCondition?.green_percent, 1)} state={isLawnAnalysisLimited(grassCondition) ? "neutral" : "good"} />
               <Field
                 label="Dry Tones"
-                value={formatPercent(grassCondition?.dry_percent, 1)}
-                state={Number(grassCondition?.dry_percent ?? 0) >= 15 ? "warn" : "neutral"}
+                value={isLawnAnalysisLimited(grassCondition) ? "—" : formatPercent(grassCondition?.dry_percent, 1)}
+                state={!isLawnAnalysisLimited(grassCondition) && Number(grassCondition?.dry_percent ?? 0) >= 15 ? "warn" : "neutral"}
               />
               <Field label="Valid Area" value={formatPercent(grassCondition?.valid_percent, 1)} />
             </div>
