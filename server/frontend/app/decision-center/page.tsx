@@ -449,7 +449,7 @@ export default function DecisionCenterPage() {
               state={Array.isArray(evidence?.trusted_inputs) && evidence.trusted_inputs.length > 0 ? "good" : "neutral"}
             />
             <Field
-              label="Ignored Inputs"
+              label="Not Trusted"
               value={Array.isArray(evidence?.ignored_inputs) ? evidence.ignored_inputs.length : 0}
               state={Array.isArray(evidence?.ignored_inputs) && evidence.ignored_inputs.length > 0 ? "warn" : "good"}
             />
@@ -463,7 +463,7 @@ export default function DecisionCenterPage() {
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl border border-neutral-800 bg-black p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
-                Ignored / Degraded Inputs
+                Not Trusted This Cycle
               </p>
               <div className="mt-3 space-y-3">
                 {reasonList(evidence?.ignored_inputs).length === 0 ? (
@@ -602,7 +602,14 @@ export default function DecisionCenterPage() {
             <div className="mt-5 grid grid-cols-2 gap-3">
               <Field label="Proposed Action" value={formatMode(environment?.recommendation || decision?.action || "monitor")} />
               <Field label="Decision Source" value={environment?.recommendation ? "environment rules" : decision?.source || "rules"} />
-              <Field label="Command State" value={decision?.requires_execution} />
+              <Field
+                label="Command State"
+                value={
+                  automationMode === "auto" && environment?.recommendation === "delay_irrigation"
+                    ? "Weather Delay Active"
+                    : decision?.requires_execution
+                }
+              />
               <Field label="Decision Time" value={formatTime(decision?.time)} />
               <Field label="Rain Chance" value={formatPercent(weather?.rain_chance)} state={Number(weather?.rain_chance ?? 0) >= 70 ? "warn" : "neutral"} />
               <Field label="Irrigation" value={sprinkler?.running ? "Running" : "Idle"} state={sprinkler?.running ? "active" : "neutral"} />
@@ -618,14 +625,14 @@ export default function DecisionCenterPage() {
 
           <div className="mt-5 grid gap-3 md:grid-cols-4">
             <Field
-              label="Auto Execute Allowed"
-              value={safety?.auto_execute_allowed}
-              state={safety?.auto_execute_allowed ? "good" : "warn"}
+              label="Auto Mode Enabled"
+              value={automationMode === "auto" ? "Yes" : "No"}
+              state={automationMode === "auto" ? "good" : "warn"}
             />
             <Field
-              label="Requires Approval"
-              value={safety?.requires_user_approval}
-              state={safety?.requires_user_approval ? "warn" : "good"}
+              label="Approval Path"
+              value={automationMode === "auto" ? "Auto gated" : "Manual approval"}
+              state={automationMode === "auto" ? "good" : "warn"}
             />
             <Field
               label="Manual Override"
@@ -653,7 +660,7 @@ export default function DecisionCenterPage() {
           </p>
 
           <pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-black p-4 text-xs leading-5 text-neutral-300">
-            {formatJson(controlResult || { message: "Awaiting operator approval. No hardware command has been sent." })}
+            {formatJson(controlResult || { message: automationMode === "auto" ? "Weather delay is active. Orion is operating under auto safety gates." : "Weather delay is active. Orion is operating under auto safety gates." })}
           </pre>
         </section>
 
