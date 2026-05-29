@@ -338,14 +338,25 @@ def _analyze_grass_from_snapshot() -> dict[str, Any]:
     valid_percent = round((1.0 - dark_ratio) * 100.0, 1)
     dryness_index = round(_clamp((dry_ratio * 0.75) + ((100.0 - score) / 100.0 * 0.25), 0.0, 1.0), 3)
 
+    low_light = avg_brightness < 0.16 or dark_ratio >= 0.75 or valid_percent < 20.0
+
+    if low_light:
+        condition = "low_light"
+        recommendation = "Lawn analysis paused because lighting is too low for reliable grass color scoring."
+        score = None
+        dryness_index = None
+        green_percent = None
+        dry_percent = None
+
     return {
-        "ok": True,
+        "ok": not low_light,
+        "analysis_available": not low_light,
         "source": "orion_jetson_snapshot_analysis",
         "node_url": VISION_NODE_URL,
         "condition": condition,
         "grass_condition": condition,
         "score": score,
-        "confidence": "medium",
+        "confidence": "low" if low_light else "medium",
         "recommendation": recommendation,
         "reason": recommendation,
         "dryness_index": dryness_index,

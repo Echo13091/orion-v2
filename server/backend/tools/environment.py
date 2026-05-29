@@ -51,10 +51,16 @@ def is_lawn_analysis_available(grass_condition: Dict[str, Any]) -> bool:
     condition = str(grass_condition.get("condition") or "").strip().lower()
     valid_percent = safe_float(grass_condition.get("valid_percent"), 0.0)
 
-    if condition == "unknown":
+    if grass_condition.get("analysis_available") is False:
         return False
 
-    if valid_percent is not None and valid_percent < 5.0:
+    if grass_condition.get("ok") is False:
+        return False
+
+    if condition in {"unknown", "unavailable", "low_light", "night", "limited_visibility"}:
+        return False
+
+    if valid_percent is not None and valid_percent < 20.0:
         return False
 
     return True
