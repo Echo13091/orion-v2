@@ -1182,7 +1182,7 @@ export default function Home() {
                     Decision Trace
                   </p>
                   <p className="mt-2 text-sm leading-6 text-neutral-300">
-                    {decision.reason}
+                    {environment?.reason || decision.reason}
                   </p>
                 </div>
               ) : null}
@@ -1246,13 +1246,24 @@ export default function Home() {
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <Field label="Decision" value={formatMode(decision?.action || "observe")} state="active" />
-              <Field label="Source" value={decision?.source || "rules"} />
-              <Field label="Requires Execution" value={decision?.requires_execution} />
+              <Field label="Decision" value={formatMode(environment?.recommendation || decision?.action || "observe")} state="active" />
+              <Field label="Source" value={environment?.recommendation ? "environment rules" : decision?.source || "rules"} />
+              <Field
+                  label="Command State"
+                  value={
+                    automationMode === "auto" && environment?.recommendation === "delay_irrigation"
+                      ? "Weather Delay Active"
+                      : decision?.requires_execution
+                  }
+                />
               <Field
                 label="Safety"
-                value={environment?.safety?.reason || "Monitoring system"}
-                state={environment?.safety?.requires_user_approval ? "warn" : "good"}
+                value={
+                  automationMode === "auto"
+                    ? "Auto mode is enabled. Weather and safety-gated actions may apply."
+                    : environment?.safety?.reason || "Monitoring system"
+                }
+                state={automationMode === "auto" ? "good" : environment?.safety?.requires_user_approval ? "warn" : "good"}
               />
             </div>
 
@@ -1291,7 +1302,7 @@ export default function Home() {
               fields={[
                 {
                   label: "Action",
-                  value: formatMode(decision?.action || recommendation.action),
+                  value: formatMode(environment?.recommendation || decision?.action || recommendation.action),
                   state: "active",
                 },
                 {
@@ -1301,8 +1312,8 @@ export default function Home() {
                 },
                 {
                   label: "Approval",
-                  value: environment?.safety?.requires_user_approval ? "Required" : "Not required",
-                  state: environment?.safety?.requires_user_approval ? "warn" : "good",
+                  value: automationMode === "auto" ? "Auto gated" : "Manual approval",
+                  state: automationMode === "auto" ? "good" : "warn",
                 },
                 {
                   label: "Faults",
