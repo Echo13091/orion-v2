@@ -7,7 +7,7 @@ from providers.thermostat_provider import ThermostatProvider
 
 HVAC_URL = os.getenv(
     "ORION_EXISTING_HVAC_URL",
-    "http://192.168.7.232:5002/api/hvac/status",
+    "http://thermostat-controller.local:5002/api/hvac/status",
 )
 
 

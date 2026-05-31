@@ -1,7 +1,7 @@
 services:
   backend:
     environment:
-      ORION_STANDALONE_IRRIGATION_URL: "http://192.168.7.210"
+      ORION_STANDALONE_IRRIGATION_URL: "${ORION_STANDALONE_IRRIGATION_URL:-http://sprinkler-controller.local:5000}"
 
   thermostat-bridge:
     image: orionv2-backend

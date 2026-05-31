@@ -10,12 +10,12 @@ import requests
 
 SPRINKLER_BASE_URL = os.getenv(
     "SPRINKLER_BASE_URL",
-    "http://192.168.7.232:5000",
+    "http://sprinkler-controller.local:5000",
 ).rstrip("/")
 
 THERMOSTAT_BASE_URL = os.getenv(
     "THERMOSTAT_BASE_URL",
-    "http://192.168.7.232:5002",
+    "http://thermostat-controller.local:5002",
 ).rstrip("/")
 
 
