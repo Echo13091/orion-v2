@@ -124,9 +124,18 @@ export default function VisionNodePage() {
   }, []);
 
   useEffect(() => {
-    loadVision();
-    const timer = window.setInterval(loadVision, Number.isFinite(POLL_MS) ? POLL_MS : 3000);
-    return () => window.clearInterval(timer);
+    const pollInterval = Number.isFinite(POLL_MS) ? POLL_MS : 3000;
+    const run = () => {
+      void loadVision();
+    };
+
+    const initialTimer = window.setTimeout(run, 0);
+    const pollTimer = window.setInterval(run, pollInterval);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(pollTimer);
+    };
   }, [loadVision]);
 
   const nodeUrl = useMemo(() => {
